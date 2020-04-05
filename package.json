@@ -1,0 +1,14 @@
+{
+  "name": "hekate",
+  "version": "0.1.0",
+  "description": "2D Game Dev Creation Tool",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "delphic",
+  "license": "ISC",
+  "dependencies": {
+    "electron": "^8.2.0"
+  }
+}
