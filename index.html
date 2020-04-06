@@ -8,21 +8,116 @@
 		<style>
 body { background: #EEE; color: #111; font-family: monospace; }
 #editor { height: 200px; }
+fieldset div { margin: 5px 0; }
+fieldset input, fieldset select { width: 100px; }
+fieldset input.button { width: auto; margin: 5px 0; }
 		</style>
 	</head>
 	<body>
 		<h1>Hello World!</h1>
 		<p>This is Hekate.</p>
-		<div id="editor">var sampleFunction = function() {
-	console.log("why does everyone use constructor functions?");
-};
-		</div>
+		<fieldset id="controls">
+			<select id="loadFileName"></select>
+			<input type="button" class="button" value="Load" onclick="loadFile();" />
+			<input type="button" class="button" value="Delete" onclick="deleteFile();" />
+			<input type="text" id="saveFileName" value="" />
+			<input type="button" class="button" value="Save" onclick="saveFile();" />
+		</fieldset>
+		<div id="editor"></div>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script>
+// TODO: Update to use https://www.electronjs.org/docs/api/dialog
+// if you want to pass current browser window - require('electron').remote.getCurrentWindow().id
+// although that'll only work if action is user initialised presumably
+
+// TODO: Hotkeys
+
+var fs = require('fs');
 var editor = ace.edit("editor");
 editor.setTheme("ace/theme/monokai");
 editor.session.setMode("ace/mode/javascript");
+
+var refreshFileSelect = function() {
+	let files = fs.opendirSync("files", "utf-8");
+	let file = files.readSync();
+	let fileNameSelect = document.getElementById("loadFileName");
+	
+	while (fileNameSelect.firstChild) {
+		fileNameSelect.removeChild(fileNameSelect.firstChild);
+	}
+	
+	// TODO: Append empty child for when first loading?
+	let fileNames = [];
+	while (fileNameSelect && file && file.isFile()) {
+		fileNames.push(file.name);
+		file = files.readSync();
+	}
+	let l = fileNames.length; 
+	while (l > 0) {
+		l -= 1;
+		fileNameSelect.appendChild(document.createElement("option")).innerHTML = fileNames[l];
+	}
+};
+
+refreshFileSelect();
+
+var loadFile = function() {
+	// TODO: check for unsaved changes
+	let fileName = document.getElementById("loadFileName").value;
+	if (fileName) {
+		fs.readFile('files/' + fileName, 'utf-8', function(error, data) {
+			if (!error) {
+				editor.setValue(data);
+				editor.selection.clearSelection();
+				editor.selection.moveCursorTo(0, 0, false);
+				
+				document.getElementById("saveFileName").value = fileName;
+				// TODO: Better tracking of loaded file than value of saveFileName
+				console.log("Loaded " + fileName + "!");
+			} else {
+				console.log(JSON.stringify(error));
+			}
+		});
+	}
+
+};
+
+var deleteFile = function() {
+	let fileName = document.getElementById("loadFileName").value;
+	if (fileName && window.confirm("Are you sure?")) {
+		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
+		fs.unlink('files/' + fileName, function(error) {
+			if (error) {
+				console.log(JSON.stringify(error));
+			} else {
+				let saveFileNameElement = document.getElementById("saveFileName");
+				if (saveFileNameElement.value == fileName) {
+					saveFileNameElement.value = "";
+					editor.setValue("");
+				}
+				refreshFileSelect();
+				console.log("Deleted " + fileName + "!");
+			}
+		});
+	}
+};
+
+var saveFile = function() {
+	let fileName = document.getElementById("saveFileName").value;
+	if (fileName) {
+		fs.writeFile('files/' + fileName, editor.getValue(), function(error) { 
+			if (!error) {
+				console.log("Saved " + fileName + "!"); 
+				refreshFileSelect();
+				document.getElementById("loadFileName").value = fileName;
+			} else {
+				console.log(JSON.stringify(error));
+			}
+		});
+	}
+};
 		</script>
+
 		<p>Version Info:</p>
 		<ul>
 			<li>node <script>document.write(process.versions.node)</script></li>
