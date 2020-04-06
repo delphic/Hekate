@@ -6,7 +6,8 @@ var createWindow = function() {
 		height: 600,
 		webPreferences: {
 			nodeIntegration: true
-		}
+		},
+		icon: "icon.png"
 	});
 	
 	browserWindow.loadFile('index.html');

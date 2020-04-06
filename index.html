@@ -6,36 +6,49 @@
 		<!-- https://electronjs.org/docs/tutorial/security#csp-meta-tag -->
 		<!--meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" /-->
 		<style>
-body { background: #EEE; color: #111; font-family: monospace; }
-#editor { height: 200px; }
+html { padding: 0; margin: 0; }
+body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; }
+#editor { height: 90%; } /* Oh no the classic height problems of css */
+fieldset { position: relative; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { width: auto; margin: 5px 0; }
 		</style>
+<!-- Would be nice to be able to reuse the ace themes on the rest of the UI -->
 	</head>
 	<body>
-		<h1>Hello World!</h1>
-		<p>This is Hekate.</p>
 		<fieldset id="controls">
-			<select id="loadFileName"></select>
-			<input type="button" class="button" value="Load" onclick="loadFile();" />
-			<input type="button" class="button" value="Delete" onclick="deleteFile();" />
-			<input type="text" id="saveFileName" value="" />
+			<input type="button" class="button" value="Open" onclick="openDialog();" />
 			<input type="button" class="button" value="Save" onclick="saveFile();" />
 		</fieldset>
 		<div id="editor"></div>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script>
-// TODO: Update to use https://www.electronjs.org/docs/api/dialog
-// if you want to pass current browser window - require('electron').remote.getCurrentWindow().id
-// although that'll only work if action is user initialised presumably
 
+// TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
 // TODO: Hotkeys
+// TODO: Show current file type in bottom right, with a popup to change it.
+// TODO: Show log messages in bottom bar (e.g. confirmed save, confirmed load etc)
 
+const { dialog } = require('electron').remote;
+// https://www.electronjs.org/docs/api/dialog
+const currentWindow = require('electron').remote.getCurrentWindow();
+
+var currentFilePath = "";
 var fs = require('fs');
 var editor = ace.edit("editor");
 editor.setTheme("ace/theme/monokai");
-editor.session.setMode("ace/mode/javascript");
+
+var openDialog = function() {
+	let files = dialog.showOpenDialogSync(currentWindow, {
+		title: "Open File",
+		defaultPath: "/home/pi/",
+		properties: [ "openFile" ]
+	});
+	if (files) {
+	    loadFile(files[0]);
+	}
+};
 
 var refreshFileSelect = function() {
 	let files = fs.opendirSync("files", "utf-8");
@@ -59,27 +72,52 @@ var refreshFileSelect = function() {
 	}
 };
 
-refreshFileSelect();
+var getFileExtension = function(path) {
+    // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript/12900504#12900504
+    return path.slice((path.lastIndexOf(".") - 1 >>> 0) + 2);  
+};
 
-var loadFile = function() {
+var loadFile = function(path) {
 	// TODO: check for unsaved changes
-	let fileName = document.getElementById("loadFileName").value;
-	if (fileName) {
-		fs.readFile('files/' + fileName, 'utf-8', function(error, data) {
+	if (path) {
+		fs.readFile(path, 'utf-8', function(error, data) {
 			if (!error) {
 				editor.setValue(data);
 				editor.selection.clearSelection();
 				editor.selection.moveCursorTo(0, 0, false);
+				currentFilePath = path;
+				let extension = getFileExtension(path);
+				switch(extension)
+				{
+				    case "js":
+				        editor.session.setMode("ace/mode/javascript");
+				        break;
+			        case "json":
+			            editor.session.setMode("ace/mode/json");
+			            break;
+				    case "htm":
+			        case "html":
+				        editor.session.setMode("ace/mode/html");
+			            break;
+			        case "glsl":
+				        editor.session.setMode("ace/mode/glsl");
+				        break;
+				    case "markdown":
+				    case "md":
+				        editor.session.setMode("ace/mode/markdown");
+				        break;
+				    default:
+				        editor.session.setMode("ace/mode/text");
+    				    break;
+				}
 				
-				document.getElementById("saveFileName").value = fileName;
 				// TODO: Better tracking of loaded file than value of saveFileName
-				console.log("Loaded " + fileName + "!");
+				console.log("Loaded " + path + "!");
 			} else {
 				console.log(JSON.stringify(error));
 			}
 		});
 	}
-
 };
 
 var deleteFile = function() {
@@ -103,13 +141,21 @@ var deleteFile = function() {
 };
 
 var saveFile = function() {
-	let fileName = document.getElementById("saveFileName").value;
+	let fileName = currentFilePath;
+	if (!fileName) {
+	    fileName = dialog.showSaveDialogSync(currentWindow, { 
+	        title: "Save As...",
+	        properties: [ "createDirectory" ]
+	    });
+	}
+	
 	if (fileName) {
-		fs.writeFile('files/' + fileName, editor.getValue(), function(error) { 
+		fs.writeFile(fileName, editor.getValue(), function(error) { 
 			if (!error) {
 				console.log("Saved " + fileName + "!"); 
-				refreshFileSelect();
-				document.getElementById("loadFileName").value = fileName;
+				// TODO: Issue events for things which care instead of manually doing this
+				//refreshFileSelect();
+				// document.getElementById("loadFileName").value = fileName;
 			} else {
 				console.log(JSON.stringify(error));
 			}
@@ -117,12 +163,13 @@ var saveFile = function() {
 	}
 };
 		</script>
-
+		<!--
 		<p>Version Info:</p>
 		<ul>
 			<li>node <script>document.write(process.versions.node)</script></li>
 			<li>chrome <script>document.write(process.versions.chrome)</script></li>
 			<li>electron <script>document.write(process.versions.electron)</script></li>
 		</ul>
+		-->
 	</body>
 </html>
