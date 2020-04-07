@@ -7,10 +7,11 @@
 		<!--meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" /-->
 		<style>
 html { padding: 0; margin: 0; }
-body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; }
+body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; overflow-y: hidden; }
 #editor { height: calc(100% - 60px); }
 /* TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
 fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; }
+fieldset p { margin-top: 9px; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { width: auto; margin: 5px 0; }
@@ -24,7 +25,7 @@ fieldset input.button { width: auto; margin: 5px 0; }
 		</fieldset>
 		<div id="editor"></div>
 		<fieldset id="bottomBar">
-		    
+		    <p id="logMessage"></p>
 		</fieldset>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script>
@@ -109,13 +110,23 @@ var getFileNamesInDir = function(path) {
 	let files = fs.opendirSync(path, "utf-8");
 	let file = files.readSync();
 
-	// TODO: Append empty child for when first loading?
 	let fileNames = [];
 	while (file && file.isFile()) {
 		fileNames.push(file.name);
 		file = files.readSync();
 	}
 	return fileNames;
+};
+
+var logMessage = function(message) {
+    // TODO: should probably escape this
+    document.getElementById("logMessage").innerHTML = message;
+    // Clear after timeout?
+};
+
+var logError = function(error) {
+    document.getElementById("logMessage").innerHTML = "<span style='color:red'>" + error.message + "</span>";
+    console.log(JSON.stringify(error));
 };
 
 /* File Save / Load */ 
@@ -133,21 +144,21 @@ var openDialog = function() {
 	}
 };
 
-var getFileExtension = function(path) {
+var getFileExtension = function(filePath) {
     // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript/12900504#12900504
-    return path.slice((path.lastIndexOf(".") - 1 >>> 0) + 2);  
+    return filePath.slice((filePath.lastIndexOf(".") - 1 >>> 0) + 2);  
 };
 
-var loadFile = function(path) {
+var loadFile = function(filePath) {
 	// TODO: check for unsaved changes
-	if (path) {
-		fs.readFile(path, 'utf-8', function(error, data) {
+	if (filePath) {
+		fs.readFile(filePath, 'utf-8', function(error, data) {
 			if (!error) {
 				editor.setValue(data);
 				editor.selection.clearSelection();
 				editor.selection.moveCursorTo(0, 0, false);
-				currentFilePath = path;
-				let extension = getFileExtension(path);
+				currentFilePath = filePath;
+				let extension = getFileExtension(filePath);
 				switch(extension)
 				{
 				    case "js":
@@ -171,54 +182,45 @@ var loadFile = function(path) {
 				        editor.session.setMode("ace/mode/text");
     				    break;
 				}
-				
 				// TODO: Watch file and notify of external changes
-				console.log("Loaded " + path + "!");
+				logMessage("Loaded " + filePath);
 			} else {
-				console.log(JSON.stringify(error));
+				logError(error);
 			}
 		});
 	}
 };
 
 var saveFile = function() {
-	let fileName = currentFilePath;
-	if (!fileName) {
-	    fileName = dialog.showSaveDialogSync(currentWindow, { 
+	let filePath = currentFilePath;
+	if (!filePath) {
+	    filePath = dialog.showSaveDialogSync(currentWindow, { 
 	        title: "Save As...",
 	        properties: [ "createDirectory" ]
 	    });
+	    currentFilePath = filePath;
 	}
 	
-	if (fileName) {
-		fs.writeFile(fileName, editor.getValue(), function(error) { 
+	if (filePath) {
+		fs.writeFile(filePath, editor.getValue(), function(error) { 
 			if (!error) {
-				console.log("Saved " + fileName + "!"); 
-				// TODO: Issue events for things which care instead of manually doing this
-				//refreshFileSelect();
-				// document.getElementById("loadFileName").value = fileName;
+				logMessage("Saved " + filePath); 
+				// TODO: Issue events or use a callback
 			} else {
-				console.log(JSON.stringify(error));
+				logError(error);
 			}
 		});
 	}
 };
 
-var deleteFile = function() {
-	let fileName = document.getElementById("loadFileName").value;
-	if (fileName && window.confirm("Are you sure?")) {
+var deleteFile = function(filePath) {
+	if (filePath && window.confirm("Are you sure?")) {
 		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
-		fs.unlink('files/' + fileName, function(error) {
+		fs.unlink(filePath, function(error) {
 			if (error) {
-				console.log(JSON.stringify(error));
+				logError(error);
 			} else {
-				let saveFileNameElement = document.getElementById("saveFileName");
-				if (saveFileNameElement.value == fileName) {
-					saveFileNameElement.value = "";
-					editor.setValue("");
-				}
-				refreshFileSelect();
-				console.log("Deleted " + fileName + "!");
+				logMessage("Deleted " + filePath);
 			}
 		});
 	}
