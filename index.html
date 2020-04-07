@@ -2,9 +2,7 @@
 	<head>
 		<meta charset="utf-8">
 		<title>Hekate</title>
-		<!-- https://www.electronjs.org/docs/tutorial/security#6-define-a-content-security-policy -->
-		<!-- https://electronjs.org/docs/tutorial/security#csp-meta-tag -->
-		<!--meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" /-->
+		<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
 		<style>
 html { padding: 0; margin: 0; }
 body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; overflow-y: hidden; }
@@ -32,15 +30,12 @@ fieldset input.button { width: auto; margin: 5px 0; }
 // TODO: General ace settings - ideally on change intercept, failing that use onbeforeunload
 // ideally would save ace settings directly into config, rather than hand coding a shim
 
-// TODO: Show log messages in bottom bar (e.g. confirmed save, confirmed load etc)
 // TODO: Show current file type in bottom right, with a popup to change it.
 
-// TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor*
+// TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
 // Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
 // pages in tabs we can easily build an editor - should we be using the main program to control this?
 // It would be nice to be able to have deattachable separate windows, and the ability to merge and split.
-
-// We'd want to sort our CSP before loading external data
 
 const { app, dialog } = require('electron').remote;
 const currentWindow = require('electron').remote.getCurrentWindow();
