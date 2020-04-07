@@ -8,15 +8,16 @@
 		<style>
 html { padding: 0; margin: 0; }
 body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; }
-#editor { height: 90%; } /* Oh no the classic height problems of css */
-fieldset { position: relative; }
+#editor { height: 95%; }
+/* Oh no the classic height problems of css, TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
+fieldset { height: 5%; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { width: auto; margin: 5px 0; }
 		</style>
 <!-- Would be nice to be able to reuse the ace themes on the rest of the UI -->
 	</head>
-	<body>
+	<body onkeypress="onKeyPress(event);">
 		<fieldset id="controls">
 			<input type="button" class="button" value="Open" onclick="openDialog();" />
 			<input type="button" class="button" value="Save" onclick="saveFile();" />
@@ -26,9 +27,14 @@ fieldset input.button { width: auto; margin: 5px 0; }
 		<script>
 
 // TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
-// TODO: Hotkeys
+// Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
+// pages in tabs we can easily build an editor - should we be using the main program to control this?
+// It would be nice to be able to have deattachable separate windows, and the ability to merge and split.
+
 // TODO: Show current file type in bottom right, with a popup to change it.
 // TODO: Show log messages in bottom bar (e.g. confirmed save, confirmed load etc)
+// TODO: Cached data - last saved file / open directory etc
+// TODO: Box model and/or JS based height (~30px top bar, everything else editor looks good right now)
 
 const { dialog } = require('electron').remote;
 // https://www.electronjs.org/docs/api/dialog
@@ -38,6 +44,20 @@ var currentFilePath = "";
 var fs = require('fs');
 var editor = ace.edit("editor");
 editor.setTheme("ace/theme/monokai");
+
+var onKeyPress = function(event) {
+    if (event.ctrlKey) {
+        switch(event.key)
+        {
+            case "s":
+                saveFile();
+                break;
+            case "o":
+                openDialog();
+                break;
+        }
+    }
+};
 
 var openDialog = function() {
 	let files = dialog.showOpenDialogSync(currentWindow, {
