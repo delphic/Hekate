@@ -8,9 +8,9 @@
 		<style>
 html { padding: 0; margin: 0; }
 body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; }
-#editor { height: 95%; }
-/* Oh no the classic height problems of css, TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
-fieldset { height: 5%; }
+#editor { height: calc(100% - 60px); }
+/* TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
+fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { width: auto; margin: 5px 0; }
@@ -23,21 +23,29 @@ fieldset input.button { width: auto; margin: 5px 0; }
 			<input type="button" class="button" value="Save" onclick="saveFile();" />
 		</fieldset>
 		<div id="editor"></div>
+		<fieldset id="bottomBar">
+		    
+		</fieldset>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script>
+// TODO: Cached data - last saved file / open directory etc
 
-// TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
+// TODO: Cache current file - either via localstorage or via fs to app.getPath('userData')
+// note to use local storage easily from main process need a package https://www.npmjs.com/package/electron-browser-storage
+// Also cache theme if possible from settings menu, will need to intercept.
+
+
+// TODO: Show log messages in bottom bar (e.g. confirmed save, confirmed load etc)
+// TODO: Show current file type in bottom right, with a popup to change it.
+
+// TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor*
 // Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
 // pages in tabs we can easily build an editor - should we be using the main program to control this?
 // It would be nice to be able to have deattachable separate windows, and the ability to merge and split.
 
-// TODO: Show current file type in bottom right, with a popup to change it.
-// TODO: Show log messages in bottom bar (e.g. confirmed save, confirmed load etc)
-// TODO: Cached data - last saved file / open directory etc
-// TODO: Box model and/or JS based height (~30px top bar, everything else editor looks good right now)
+// We'd want to sort our CSP before loading external data
 
-const { dialog } = require('electron').remote;
-// https://www.electronjs.org/docs/api/dialog
+const { app, dialog } = require('electron').remote;
 const currentWindow = require('electron').remote.getCurrentWindow();
 
 var currentFilePath = "";
@@ -60,6 +68,7 @@ var onKeyPress = function(event) {
 };
 
 var openDialog = function() {
+    // https://www.electronjs.org/docs/api/dialog
 	let files = dialog.showOpenDialogSync(currentWindow, {
 		title: "Open File",
 		defaultPath: "/home/pi/",
@@ -131,7 +140,7 @@ var loadFile = function(path) {
     				    break;
 				}
 				
-				// TODO: Better tracking of loaded file than value of saveFileName
+				// TODO: Watch file and notify of external changes
 				console.log("Loaded " + path + "!");
 			} else {
 				console.log(JSON.stringify(error));
