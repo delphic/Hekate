@@ -28,12 +28,8 @@ fieldset input.button { width: auto; margin: 5px 0; }
 		</fieldset>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script>
-// TODO: Cached data - last saved file / open directory etc
-
-// TODO: Cache current file - either via localstorage or via fs to app.getPath('userData')
-// note to use local storage easily from main process need a package https://www.npmjs.com/package/electron-browser-storage
-// Also cache theme if possible from settings menu, will need to intercept.
-
+// TODO: General ace settings - ideally on change intercept, failing that use onbeforeunload
+// ideally would save ace settings directly into config, rather than hand coding a shim
 
 // TODO: Show log messages in bottom bar (e.g. confirmed save, confirmed load etc)
 // TODO: Show current file type in bottom right, with a popup to change it.
@@ -48,25 +44,81 @@ fieldset input.button { width: auto; margin: 5px 0; }
 const { app, dialog } = require('electron').remote;
 const currentWindow = require('electron').remote.getCurrentWindow();
 
-var currentFilePath = "";
 var fs = require('fs');
-var editor = ace.edit("editor");
-editor.setTheme("ace/theme/monokai");
 
-var onKeyPress = function(event) {
-    if (event.ctrlKey) {
-        switch(event.key)
-        {
-            case "s":
-                saveFile();
-                break;
-            case "o":
-                openDialog();
-                break;
-        }
+var config;
+var lastOpenedFilePath = "";
+var currentFilePath = "";
+var configPath = app.getPath('userData') + "/config.json";
+
+var editor = ace.edit("editor");
+
+/* Config  */
+var loadConfig = function() {
+	try {
+		config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+	} catch (error) {
+		// Pokemon - file doesn't exist
+	    config = { 
+	        lastOpenedFilePath: "",
+	        aceThemePath: "ace/theme/monokai",
+	    };
+	}
+}
+
+var getAceTheme = function() {
+    if (config && config.hasOwnProperty("aceThemePath")) {
+		return config["aceThemePath"];
+	}
+	return "ace/theme/monokai"; // Obviously the best default theme
+};
+
+var setAceTheme = function(themePath) {
+    if (!config.hasOwnProperty("aceThemePath") || config.aceThemePath != themePath) {
+        config["aceThemePath"] = themePath;
+        saveConfig();
     }
 };
 
+var getLastOpenedFilePath = function() {
+	if (config && config.hasOwnProperty("lastOpenedFilePath")) {
+		return config["lastOpenedFilePath"];
+	}
+	return null;
+};
+
+var setLastOpenedFilePath = function(path) {
+    if (!config.hasOwnProperty("lastOpenedFilePath") || config.lastOpenedFilePath != path) {
+        config["lastOpenedFilePath"] = path;
+        saveConfig();
+    }
+};
+
+var saveConfig = function() {
+   	fs.writeFile(configPath, JSON.stringify(config), function(error) { });
+};
+
+
+var removeAllChildNodes = function(element) {
+  while (element && element.firstChild) {
+      element.removeChild(element.firstChild);
+  } 
+};
+
+var getFileNamesInDir = function(path) {
+	let files = fs.opendirSync(path, "utf-8");
+	let file = files.readSync();
+
+	// TODO: Append empty child for when first loading?
+	let fileNames = [];
+	while (file && file.isFile()) {
+		fileNames.push(file.name);
+		file = files.readSync();
+	}
+	return fileNames;
+};
+
+/* File Save / Load */ 
 var openDialog = function() {
     // https://www.electronjs.org/docs/api/dialog
 	let files = dialog.showOpenDialogSync(currentWindow, {
@@ -74,30 +126,10 @@ var openDialog = function() {
 		defaultPath: "/home/pi/",
 		properties: [ "openFile" ]
 	});
-	if (files) {
+	if (files && files[0]) {
 	    loadFile(files[0]);
-	}
-};
-
-var refreshFileSelect = function() {
-	let files = fs.opendirSync("files", "utf-8");
-	let file = files.readSync();
-	let fileNameSelect = document.getElementById("loadFileName");
-	
-	while (fileNameSelect.firstChild) {
-		fileNameSelect.removeChild(fileNameSelect.firstChild);
-	}
-	
-	// TODO: Append empty child for when first loading?
-	let fileNames = [];
-	while (fileNameSelect && file && file.isFile()) {
-		fileNames.push(file.name);
-		file = files.readSync();
-	}
-	let l = fileNames.length; 
-	while (l > 0) {
-		l -= 1;
-		fileNameSelect.appendChild(document.createElement("option")).innerHTML = fileNames[l];
+	    // Arguably this should be in a callback and we should move the logic to config class
+	    setLastOpenedFilePath(files[0])
 	}
 };
 
@@ -149,26 +181,6 @@ var loadFile = function(path) {
 	}
 };
 
-var deleteFile = function() {
-	let fileName = document.getElementById("loadFileName").value;
-	if (fileName && window.confirm("Are you sure?")) {
-		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
-		fs.unlink('files/' + fileName, function(error) {
-			if (error) {
-				console.log(JSON.stringify(error));
-			} else {
-				let saveFileNameElement = document.getElementById("saveFileName");
-				if (saveFileNameElement.value == fileName) {
-					saveFileNameElement.value = "";
-					editor.setValue("");
-				}
-				refreshFileSelect();
-				console.log("Deleted " + fileName + "!");
-			}
-		});
-	}
-};
-
 var saveFile = function() {
 	let fileName = currentFilePath;
 	if (!fileName) {
@@ -191,6 +203,60 @@ var saveFile = function() {
 		});
 	}
 };
+
+var deleteFile = function() {
+	let fileName = document.getElementById("loadFileName").value;
+	if (fileName && window.confirm("Are you sure?")) {
+		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
+		fs.unlink('files/' + fileName, function(error) {
+			if (error) {
+				console.log(JSON.stringify(error));
+			} else {
+				let saveFileNameElement = document.getElementById("saveFileName");
+				if (saveFileNameElement.value == fileName) {
+					saveFileNameElement.value = "";
+					editor.setValue("");
+				}
+				refreshFileSelect();
+				console.log("Deleted " + fileName + "!");
+			}
+		});
+	}
+};
+
+// Set Hotkeys
+var onKeyPress = function(event) {
+    if (event.ctrlKey) {
+        switch(event.key)
+        {
+            case "s":
+                saveFile();
+                break;
+            case "o":
+                openDialog();
+                break;
+        }
+    }
+};
+
+// Unload Management
+window.addEventListener('beforeunload', function(event) {
+    // TODO: Check for unsaved changes and prompt if there are before closing
+    /* 
+    // To prevent unloading...
+    event.preventDefault(); // This is as per spec
+    event.returnValue = ''; // This is required by Chrome
+    */
+    setAceTheme(editor.getTheme());
+});
+
+// Start-up logic
+loadConfig();
+editor.setTheme(getAceTheme());
+lastOpenedFilePath = getLastOpenedFilePath();
+if (lastOpenedFilePath) {
+	loadFile(lastOpenedFilePath);
+}
 		</script>
 		<!--
 		<p>Version Info:</p>
