@@ -14,18 +14,28 @@ body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monosp
 /* TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
 /* Consider fr units https://css-tricks.com/introduction-fr-css-unit/ */ 
 fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; }
-fieldset p { display:inline-block; margin-top: 9px; }
-fieldset #fileMode { float: right; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
-fieldset input.button { width: auto; margin: 5px 0; }
+fieldset input.button { 
+    width: auto; 
+    margin: 5px 0 0;
+    padding: 5px 10px;
+}
+fieldset nav { display: inline-block; margin-left: 5px; }
+fieldset nav input.button { margin-left: 5px; }
+
+fieldset p { display:inline-block; margin-top: 9px; }
+fieldset #fileMode { float: right; }
 		</style>
 <!-- Would be nice to be able to reuse the ace themes on the rest of the UI -->
 	</head>
 	<body onkeypress="onKeyPress(event);">
 		<fieldset id="controls">
+		    <input type="button" class="button" value="New" onclick="createBlankTab();" />
 			<input type="button" class="button" value="Open" onclick="openDialog();" />
 			<input type="button" class="button" value="Save" onclick="saveCurrentTab();" />
+			<nav id="tabHolder">
+			</nav>
 		</fieldset>
 		<div id="editor"></div>
 		<fieldset id="bottomBar">
@@ -36,8 +46,12 @@ fieldset input.button { width: auto; margin: 5px 0; }
 		<script>
 // TODO: General ace settings - ideally on change intercept, failing that use onbeforeunload
 // ideally would save ace settings directly into config, rather than hand coding a shim
+// editor.onChangeMode may be what we need for this (may also want to save session data, so undo/redo
+// preserves across reloads)
 
 // TODO: Tabs and New files
+// Also either add a close button adjacent or make tab html more complex to contain a close button
+// at some point we'll want to be able to reorder tabs, which will require more complex HTML / CSS
 
 // TODO: Config 'class' 
 
@@ -62,43 +76,10 @@ var FileTab /* = module.exports */ = function() {
         		fs.readFile(filePath, 'utf-8', function(error, data) {
         			if (!error) {
         			    tab.lastSavedData = data;
-        				tab.editor.setValue(data);
-        				tab.editor.selection.clearSelection();
-        				tab.editor.selection.moveCursorTo(0, 0, false);
+        				tab.dataCache = data;
         				tab.filePath = filePath;
-        				// Move this next bit to utils method
-        				let extension = getFileExtension(filePath);
-        				switch(extension)
-        				{
-        				    case "js":
-        				        tab.editor.session.setMode("ace/mode/javascript");
-        				        tab.fileMode = "JavaScript";
-        				        break;
-        			        case "json":
-        			            tab.editor.session.setMode("ace/mode/json");
-        			            tab.fileMode = "JSON";
-        			            break;
-        				    case "htm":
-        			        case "html":
-        				        tab.editor.session.setMode("ace/mode/html");
-        				        tab.fileMode = "HTML";
-        			            break;
-        			        case "glsl":
-        				        tab.editor.session.setMode("ace/mode/glsl");
-        				        tab.fileMode = "GLSL";
-        				        break;
-        				    case "markdown":
-        				    case "md":
-        				        tab.editor.session.setMode("ace/mode/markdown");
-        				        tab.fileMode = "Markdown";
-        				        break;
-        				    default:
-        				        tab.editor.session.setMode("ace/mode/text");
-        				        tab.fileMode = "Plain Text"
-            				    break;
-        				}
         			}
-    				callback(error, data, tab.fileMode);
+    				callback(error, data);
         		});
 	        }
         },
@@ -112,6 +93,7 @@ var FileTab /* = module.exports */ = function() {
     var create = exports.create = function(params) {
         var tab = Object.create(prototype);
         tab.editor = params.editor;
+        tab.dataCache = "";
         tab.filePath = "";
         tab.fileMode = "Plain Text";
         tab.lastSavedData = "";
@@ -227,9 +209,75 @@ var logError = function(error) {
     console.log(JSON.stringify(error));
 };
 
+var setFileModeDisplay = function(filePath, editor) {
+    let extension = getFileExtension(filePath);
+    let fileMode = "";
+    switch(extension)
+	{
+        case "js":
+            editor.session.setMode("ace/mode/javascript");
+            fileMode = "JavaScript";
+            break;
+        case "json":
+            editor.session.setMode("ace/mode/json");
+            fileMode = "JSON";
+            break;
+        case "htm":
+        case "html":
+            editor.session.setMode("ace/mode/html");
+            fileMode = "HTML";
+            break;
+        case "glsl":
+            editor.session.setMode("ace/mode/glsl");
+            fileMode = "GLSL";
+            break;
+        case "markdown":
+        case "md":
+            editor.session.setMode("ace/mode/markdown");
+            fileMode = "Markdown";
+            break;
+        default:
+            editor.session.setMode("ace/mode/text");
+            fileMode = "Plain Text"
+            break;
+    }
+    return fileMode;
+};
+
 var updateFileModeDisplay = function(fileMode) {
     document.getElementById("fileMode").innerHTML = fileMode;
 };
+
+var switchToTab = function(tabIndex) {
+    if ((!currentFileTab || currentFileTab.index != tabIndex) && tabIndex < tabs.length) {
+    	if (currentFileTab) {    	
+        	currentFileTab.dataCache = currentFileTab.editor.getValue();
+        }
+
+        let tab = tabs[tabIndex];
+        
+        // TODO: Save Session Data instead and swap it
+        // but do this if no session data exists
+        tab.editor.setValue(tab.dataCache);
+		tab.editor.selection.clearSelection();
+		tab.editor.selection.moveCursorTo(0, 0, false);
+		tab.editor.session.$undoManager.reset(); 
+		// ^^ This feels they don't want us to use this what with the $
+        tab.fileMode = setFileModeDisplay(tab.filePath, tab.editor);
+
+        currentFileTab = tab;
+        currentFilePath = tab.filePath;
+        updateFileModeDisplay(tab.fileMode);
+        logMessage(tab.lastMessage);
+    }
+};
+
+var createBlankTab = function() {
+    // Bit of a hack 
+    // should probably seperate the creating new tab from loading functionality
+    loadIntoNewTab("");
+};
+
 
 /* File Save / Load */ 
 var openDialog = function() {
@@ -245,26 +293,36 @@ var openDialog = function() {
 };
 
 var loadIntoNewTab = function(filePath) {
-    let tab = currentFileTab;   // TODO: Don't do this so that the method does what it says it does 
-    if (!tab) {
-        // Question - does each tab get it's own ace editor instance? or do we reuse?
-        // TODO: create new html elements etc?
-        tab = FileTab.create({ editor: editor });
-        tabs.push(tab);
-        currentFileTab = tab;
-        // TODO: On switching tab should swap out messages and file mode
+    // Currently reusing editor
+    let tab = FileTab.create({ editor: editor });
+    let index = tabs.push(tab) - 1;
+    tab.index = index;
+
+    let tabElement = document.createElement("input");
+    tabElement.type = "button";
+    tabElement.className = "button";
+    tabElement.value = filePath ? getFileName(filePath) : "New File";
+    tabElement.onclick = function() {
+        switchToTab(index);
+    };
+    document.getElementById("tabHolder").appendChild(tabElement);
+    
+    if (filePath) {
+        tab.loadFile(filePath, function(error, data) {
+            if (!error) {
+    			switchToTab(index);
+                logMessage("Loaded " + filePath);
+                setLastOpenedFilePath(filePath);
+                // TODO: Move to config class
+            	// TODO: Watch file and notify of external changes
+                
+            } else {
+    			logError(error);
+            }
+        });        
+    } else {
+        switchToTab(index);
     }
-    tab.loadFile(filePath, function(error, data, fileMode) {
-        if (!error) {
-			logMessage("Loaded " + filePath);
-        	currentFilePath = filePath;
-            updateFileModeDisplay(fileMode);
-            setLastOpenedFilePath(filePath);    // TODO: Move to config class
-        	// TODO: Watch file and notify of external changes
-        } else {
-			logError(error);
-        }
-    });
 };
 
 var saveCurrentTab = function() {
@@ -277,6 +335,7 @@ var saveCurrentTab = function() {
 
 var saveTab  = function(tab) {
     if (tab) {
+        let saveAs = false;
     	let filePath = tab.filePath;
     	if (!filePath) {
     	    filePath = dialog.showSaveDialogSync(currentWindow, { 
@@ -285,11 +344,19 @@ var saveTab  = function(tab) {
     	    });
     	    tab.filePath = filePath;
     	    currentFilePath = filePath;
+    	    saveAs = true;
     	}
     	
     	if (filePath) {
-    	    tab.saveFile(function(error) { 
+    	    tab.saveFile(function(error) {
     			if (!error) {
+    			    if (saveAs) {
+    			        let tabElements = document.getElementById("tabHolder").childNodes;
+    			        tabElements[tab.index + 1].value = getFileName(filePath);
+    			        // ^^ apparently "text" is a child node, perhaps we should cache the tab elements
+        			    tab.fileMode = setFileModeDisplay(tab.filePath, tab.editor);
+        			    updateFileModeDisplay(tab.fileMode);
+    			    }
     				logMessage("Saved " + filePath); 
     			} else {
     				logError(error);
@@ -319,6 +386,9 @@ var onKeyPress = function(event) {
     if (event.ctrlKey) {
         switch(event.key)
         {
+            case "n":
+                createBlankTab();
+                break;
             case "s":
                 saveCurrentTab();
                 break;
