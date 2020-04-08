@@ -25,7 +25,7 @@ fieldset input.button { width: auto; margin: 5px 0; }
 	<body onkeypress="onKeyPress(event);">
 		<fieldset id="controls">
 			<input type="button" class="button" value="Open" onclick="openDialog();" />
-			<input type="button" class="button" value="Save" onclick="saveFile();" />
+			<input type="button" class="button" value="Save" onclick="saveCurrentTab();" />
 		</fieldset>
 		<div id="editor"></div>
 		<fieldset id="bottomBar">
@@ -39,6 +39,8 @@ fieldset input.button { width: auto; margin: 5px 0; }
 
 // TODO: Tabs and New files
 
+// TODO: Config 'class' 
+
 // TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
 // Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
 // pages in tabs we can easily build an editor - should we be using the main program to control this?
@@ -49,10 +51,84 @@ const currentWindow = require('electron').remote.getCurrentWindow();
 
 var fs = require('fs');
 
+var FileTab /* = module.exports */ = function() {
+    var exports = {};
+    var prototype = {
+        loadFile: function(filePath, callback) {
+        	// TODO: check for unsaved changes (store original value on loading, compare)
+        	// also sub to event for editor content changed and mark as changed
+        	if (filePath) {
+        	    let tab = this;
+        		fs.readFile(filePath, 'utf-8', function(error, data) {
+        			if (!error) {
+        			    tab.lastSavedData = data;
+        				tab.editor.setValue(data);
+        				tab.editor.selection.clearSelection();
+        				tab.editor.selection.moveCursorTo(0, 0, false);
+        				tab.filePath = filePath;
+        				// Move this next bit to utils method
+        				let extension = getFileExtension(filePath);
+        				switch(extension)
+        				{
+        				    case "js":
+        				        tab.editor.session.setMode("ace/mode/javascript");
+        				        tab.fileMode = "JavaScript";
+        				        break;
+        			        case "json":
+        			            tab.editor.session.setMode("ace/mode/json");
+        			            tab.fileMode = "JSON";
+        			            break;
+        				    case "htm":
+        			        case "html":
+        				        tab.editor.session.setMode("ace/mode/html");
+        				        tab.fileMode = "HTML";
+        			            break;
+        			        case "glsl":
+        				        tab.editor.session.setMode("ace/mode/glsl");
+        				        tab.fileMode = "GLSL";
+        				        break;
+        				    case "markdown":
+        				    case "md":
+        				        tab.editor.session.setMode("ace/mode/markdown");
+        				        tab.fileMode = "Markdown";
+        				        break;
+        				    default:
+        				        tab.editor.session.setMode("ace/mode/text");
+        				        tab.fileMode = "Plain Text"
+            				    break;
+        				}
+        			}
+    				callback(error, data, tab.fileMode);
+        		});
+	        }
+        },
+        saveFile: function(callback) {
+        	if (this.filePath) {
+        		fs.writeFile(this.filePath, this.editor.getValue(), callback);
+        	}
+        }
+        
+    };
+    var create = exports.create = function(params) {
+        var tab = Object.create(prototype);
+        tab.editor = params.editor;
+        tab.filePath = "";
+        tab.fileMode = "Plain Text";
+        tab.lastSavedData = "";
+        tab.lastMessage = "Created new tab";
+        return tab;
+    };
+    
+    return exports;
+}();
+
 var config;
 var lastOpenedFilePath = "";
 var currentFilePath = "";
 var configPath = app.getPath('userData') + "/config.json";
+
+var tabs = [];
+var currentFileTab;
 
 var editor = ace.edit("editor");
 
@@ -101,7 +177,6 @@ var saveConfig = function() {
    	fs.writeFile(configPath, JSON.stringify(config), function(error) { });
 };
 
-
 /* Utils */
 var removeAllChildNodes = function(element) {
   while (element && element.firstChild) {
@@ -141,11 +216,13 @@ var getUserDocumentsPath = function() {
 /* Editor Display Updates */
 var logMessage = function(message) {
     // TODO: should probably escape this
+    currentFileTab.lastMessage = message;
     document.getElementById("logMessage").innerHTML = message;
     // Clear after timeout?
 };
 
 var logError = function(error) {
+    currentFileTab.lastMessage = error.message;
     document.getElementById("logMessage").innerHTML = "<span style='color:red'>" + error.message + "</span>";
     console.log(JSON.stringify(error));
 };
@@ -163,83 +240,66 @@ var openDialog = function() {
 		properties: [ "openFile" ]
 	});
 	if (files && files[0]) {
-	    loadFile(files[0]);
-	    // Arguably this should be in a callback and we should move the logic to config class
-	    setLastOpenedFilePath(files[0])
+	    loadIntoNewTab(files[0]);
 	}
 };
 
-var loadFile = function(filePath) {
-	// TODO: check for unsaved changes (store original value on loading, compare)
-	// also sub to event for editor content changed and mark as changed
-	if (filePath) {
-		fs.readFile(filePath, 'utf-8', function(error, data) {
-			if (!error) {
-				editor.setValue(data);
-				editor.selection.clearSelection();
-				editor.selection.moveCursorTo(0, 0, false);
-				currentFilePath = filePath;
-				let extension = getFileExtension(filePath);
-				switch(extension)
-				{
-				    case "js":
-				        editor.session.setMode("ace/mode/javascript");
-				        updateFileModeDisplay("JavaScript");
-				        break;
-			        case "json":
-			            editor.session.setMode("ace/mode/json");
-			            updateFileModeDisplay("JSON");
-			            break;
-				    case "htm":
-			        case "html":
-				        editor.session.setMode("ace/mode/html");
-				        updateFileModeDisplay("HTML");
-			            break;
-			        case "glsl":
-				        editor.session.setMode("ace/mode/glsl");
-				        updateFileModeDisplay("GLSL");
-				        break;
-				    case "markdown":
-				    case "md":
-				        editor.session.setMode("ace/mode/markdown");
-				        updateFileModeDisplay("Markdown");
-				        break;
-				    default:
-				        editor.session.setMode("ace/mode/text");
-				        updateFileModeDisplay("Plain Text");
-    				    break;
-				}
-				// TODO: Watch file and notify of external changes
-				logMessage("Loaded " + filePath);
-			} else {
-				logError(error);
-			}
-		});
+var loadIntoNewTab = function(filePath) {
+    let tab = currentFileTab;   // TODO: Don't do this so that the method does what it says it does 
+    if (!tab) {
+        // Question - does each tab get it's own ace editor instance? or do we reuse?
+        // TODO: create new html elements etc?
+        tab = FileTab.create({ editor: editor });
+        tabs.push(tab);
+        currentFileTab = tab;
+        // TODO: On switching tab should swap out messages and file mode
+    }
+    tab.loadFile(filePath, function(error, data, fileMode) {
+        if (!error) {
+			logMessage("Loaded " + filePath);
+        	currentFilePath = filePath;
+            updateFileModeDisplay(fileMode);
+            setLastOpenedFilePath(filePath);    // TODO: Move to config class
+        	// TODO: Watch file and notify of external changes
+        } else {
+			logError(error);
+        }
+    });
+};
+
+var saveCurrentTab = function() {
+	if (currentFileTab) {
+		saveTab(currentFileTab);
+	} else {
+		logError("No tab to save!")
 	}
 };
 
-var saveFile = function() {
-	let filePath = currentFilePath;
-	if (!filePath) {
-	    filePath = dialog.showSaveDialogSync(currentWindow, { 
-	        title: "Save As...",
-	        properties: [ "createDirectory" ]
-	    });
-	    currentFilePath = filePath;
-	}
-	
-	if (filePath) {
-		fs.writeFile(filePath, editor.getValue(), function(error) { 
-			if (!error) {
-				logMessage("Saved " + filePath); 
-				// TODO: Issue events or use a callback
-			} else {
-				logError(error);
-			}
-		});
-	}
+var saveTab  = function(tab) {
+    if (tab) {
+    	let filePath = tab.filePath;
+    	if (!filePath) {
+    	    filePath = dialog.showSaveDialogSync(currentWindow, { 
+    	        title: "Save As...",
+    	        properties: [ "createDirectory" ]
+    	    });
+    	    tab.filePath = filePath;
+    	    currentFilePath = filePath;
+    	}
+    	
+    	if (filePath) {
+    	    tab.saveFile(function(error) { 
+    			if (!error) {
+    				logMessage("Saved " + filePath); 
+    			} else {
+    				logError(error);
+    			}
+    		});
+    	}
+    }
 };
 
+/* Function on a tab */
 var deleteFile = function(filePath) {
 	if (filePath && window.confirm("Are you sure?")) {
 		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
@@ -253,13 +313,14 @@ var deleteFile = function(filePath) {
 	}
 };
 
-// Set Hotkeys
+/* Tab independent */
+/* Set Hotkeys */
 var onKeyPress = function(event) {
     if (event.ctrlKey) {
         switch(event.key)
         {
             case "s":
-                saveFile();
+                saveCurrentTab();
                 break;
             case "o":
                 openDialog();
@@ -284,7 +345,7 @@ loadConfig();
 editor.setTheme(getAceTheme());
 lastOpenedFilePath = getLastOpenedFilePath();
 if (lastOpenedFilePath) {
-	loadFile(lastOpenedFilePath);
+    loadIntoNewTab(lastOpenedFilePath);
 }
 		</script>
 		<!--
