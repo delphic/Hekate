@@ -2,14 +2,20 @@
 	<head>
 		<meta charset="utf-8">
 		<title>Hekate</title>
-		<meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" />
+		<!-- meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" /-->
+		<!-- Consistently get refused to create worker error in console because of CSP, 
+		    even when worker-src is specified and you put *, or blob:* and/or filesystem:*
+		    so at a bit of a loss how to solve that, so comment out again for now
+		-->
 		<style>
 html { padding: 0; margin: 0; }
 body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; overflow-y: hidden; }
 #editor { height: calc(100% - 60px); }
 /* TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
+/* Consider fr units https://css-tricks.com/introduction-fr-css-unit/ */ 
 fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; }
-fieldset p { margin-top: 9px; }
+fieldset p { display:inline-block; margin-top: 9px; }
+fieldset #fileMode { float: right; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { width: auto; margin: 5px 0; }
@@ -24,13 +30,14 @@ fieldset input.button { width: auto; margin: 5px 0; }
 		<div id="editor"></div>
 		<fieldset id="bottomBar">
 		    <p id="logMessage"></p>
+		    <p id="fileMode">Plain Text</p>
 		</fieldset>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script>
 // TODO: General ace settings - ideally on change intercept, failing that use onbeforeunload
 // ideally would save ace settings directly into config, rather than hand coding a shim
 
-// TODO: Show current file type in bottom right, with a popup to change it.
+// TODO: Tabs and New files
 
 // TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
 // Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
@@ -95,6 +102,7 @@ var saveConfig = function() {
 };
 
 
+/* Utils */
 var removeAllChildNodes = function(element) {
   while (element && element.firstChild) {
       element.removeChild(element.firstChild);
@@ -113,6 +121,24 @@ var getFileNamesInDir = function(path) {
 	return fileNames;
 };
 
+var getFileExtension = function(filePath) {
+    // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript/12900504#12900504
+    return filePath.slice((filePath.lastIndexOf(".") - 1 >>> 0) + 2);  
+};
+
+var getFileName = function(filePath) {
+    return filePath.slice(filePath.lastIndexOf("/") + 1);
+};
+
+var getPath = function(filePath) {
+    return filePath.slice(0, filePath.lastIndexOf("/"));
+};
+
+var getUserDocumentsPath = function() {
+    return "/home/pi/Documents/"; // TODO: Don't hardcode this!
+};
+
+/* Editor Display Updates */
 var logMessage = function(message) {
     // TODO: should probably escape this
     document.getElementById("logMessage").innerHTML = message;
@@ -124,12 +150,16 @@ var logError = function(error) {
     console.log(JSON.stringify(error));
 };
 
+var updateFileModeDisplay = function(fileMode) {
+    document.getElementById("fileMode").innerHTML = fileMode;
+};
+
 /* File Save / Load */ 
 var openDialog = function() {
     // https://www.electronjs.org/docs/api/dialog
 	let files = dialog.showOpenDialogSync(currentWindow, {
 		title: "Open File",
-		defaultPath: "/home/pi/",
+		defaultPath: currentFilePath ? getPath(currentFilePath) : getUserDocumentsPath(),
 		properties: [ "openFile" ]
 	});
 	if (files && files[0]) {
@@ -139,13 +169,9 @@ var openDialog = function() {
 	}
 };
 
-var getFileExtension = function(filePath) {
-    // https://stackoverflow.com/questions/190852/how-can-i-get-file-extensions-with-javascript/12900504#12900504
-    return filePath.slice((filePath.lastIndexOf(".") - 1 >>> 0) + 2);  
-};
-
 var loadFile = function(filePath) {
-	// TODO: check for unsaved changes
+	// TODO: check for unsaved changes (store original value on loading, compare)
+	// also sub to event for editor content changed and mark as changed
 	if (filePath) {
 		fs.readFile(filePath, 'utf-8', function(error, data) {
 			if (!error) {
@@ -158,23 +184,29 @@ var loadFile = function(filePath) {
 				{
 				    case "js":
 				        editor.session.setMode("ace/mode/javascript");
+				        updateFileModeDisplay("JavaScript");
 				        break;
 			        case "json":
 			            editor.session.setMode("ace/mode/json");
+			            updateFileModeDisplay("JSON");
 			            break;
 				    case "htm":
 			        case "html":
 				        editor.session.setMode("ace/mode/html");
+				        updateFileModeDisplay("HTML");
 			            break;
 			        case "glsl":
 				        editor.session.setMode("ace/mode/glsl");
+				        updateFileModeDisplay("GLSL");
 				        break;
 				    case "markdown":
 				    case "md":
 				        editor.session.setMode("ace/mode/markdown");
+				        updateFileModeDisplay("Markdown");
 				        break;
 				    default:
 				        editor.session.setMode("ace/mode/text");
+				        updateFileModeDisplay("Plain Text");
     				    break;
 				}
 				// TODO: Watch file and notify of external changes
