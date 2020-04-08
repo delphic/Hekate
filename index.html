@@ -49,11 +49,16 @@ fieldset #fileMode { float: right; }
 // editor.onChangeMode may be what we need for this (may also want to save session data, so undo/redo
 // preserves across reloads)
 
-// TODO: Tabs and New files
-// Also either add a close button adjacent or make tab html more complex to contain a close button
-// at some point we'll want to be able to reorder tabs, which will require more complex HTML / CSS
+// TODO: convert last opened file path to last focused tabIndex
+// TODO: Close tab option
 
-// TODO: Config 'class' 
+// TODO: sub to event for editor content changed (once files loaded) 
+// and mark tab as changed if appropriate (compare to save lasted value on tab)
+
+// TODO: Store editor session data and restore when switching between tabs 
+// TODO: Ability to reorder Tabs
+
+// TODO: Move Config to a 'class' 
 
 // TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
 // Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
@@ -69,8 +74,6 @@ var FileTab /* = module.exports */ = function() {
     var exports = {};
     var prototype = {
         loadFile: function(filePath, callback) {
-        	// TODO: check for unsaved changes (store original value on loading, compare)
-        	// also sub to event for editor content changed and mark as changed
         	if (filePath) {
         	    let tab = this;
         		fs.readFile(filePath, 'utf-8', function(error, data) {
@@ -118,9 +121,19 @@ var editor = ace.edit("editor");
 var loadConfig = function() {
 	try {
 		config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+		if (!config.hasOwnProperty("openFilePaths")) {
+		    config.openFilePaths = [];
+		}
+		if (!config.hasOwnProperty("lastOpenedFilePath")) {
+		    config.lastOpenedFilePath = null;
+		}
+		if (!config.hasOwnProperty("aceThemePath")) {
+		    config.aceThemePath = "ace/theme/monokai";
+		}
 	} catch (error) {
 		// Pokemon - file doesn't exist
-	    config = { 
+	    config = {
+	        openFilePaths: [],
 	        lastOpenedFilePath: "",
 	        aceThemePath: "ace/theme/monokai",
 	    };
@@ -142,15 +155,22 @@ var setAceTheme = function(themePath) {
 };
 
 var getLastOpenedFilePath = function() {
-	if (config && config.hasOwnProperty("lastOpenedFilePath")) {
-		return config["lastOpenedFilePath"];
-	}
-	return null;
+	return config.lastOpenedFilePath;
 };
 
 var setLastOpenedFilePath = function(path) {
-    if (!config.hasOwnProperty("lastOpenedFilePath") || config.lastOpenedFilePath != path) {
-        config["lastOpenedFilePath"] = path;
+    let changeMade = false;
+    if (!config.openFilePaths.includes(path)) {
+        config.openFilePaths.push(path);
+        changeMade = true;
+    }
+    
+    if (config.lastOpenedFilePath != path) {
+        config.lastOpenedFilePath = path;
+        changeMade = true;
+    }
+    
+    if (changeMade) {
         saveConfig();
     }
 };
@@ -288,11 +308,23 @@ var openDialog = function() {
 		properties: [ "openFile" ]
 	});
 	if (files && files[0]) {
-	    loadIntoNewTab(files[0]);
+	    let foundPath = false;
+	    for(let i = 0, l = tabs.length; i < l; i++) {
+	        if (tabs[i].filePath == files[0]) {
+	            foundPath = true;
+	            if (currentFileTab != tabs[i]) {
+    	            switchToTab(i);
+	            }
+	            break;
+	        }
+	    }
+	    if (!foundPath) {
+    	    loadIntoNewTab(files[0]);
+	    }
 	}
 };
 
-var loadIntoNewTab = function(filePath) {
+var loadIntoNewTab = function(filePath, callback) {
     // Currently reusing editor
     let tab = FileTab.create({ editor: editor });
     let index = tabs.push(tab) - 1;
@@ -315,13 +347,16 @@ var loadIntoNewTab = function(filePath) {
                 setLastOpenedFilePath(filePath);
                 // TODO: Move to config class
             	// TODO: Watch file and notify of external changes
-                
+            	if (callback) {
+            	    callback();
+            	}
             } else {
     			logError(error);
             }
         });        
     } else {
         switchToTab(index);
+        callback();
     }
 };
 
@@ -413,9 +448,25 @@ window.addEventListener('beforeunload', function(event) {
 // Start-up logic
 loadConfig();
 editor.setTheme(getAceTheme());
-lastOpenedFilePath = getLastOpenedFilePath();
-if (lastOpenedFilePath) {
-    loadIntoNewTab(lastOpenedFilePath);
+if (config.openFilePaths.length > 0) {
+    lastOpenedFilePath = getLastOpenedFilePath();
+    let lastOpenedIndex = 0; // TODO: Just store focused index and use that instead
+    let nextToLoadIndex = 0;
+    var loadNextTab = function() {
+        if (nextToLoadIndex < config.openFilePaths.length) {
+            let filePath = config.openFilePaths[nextToLoadIndex]; 
+            if (filePath == lastOpenedFilePath) {
+                lastOpenedIndex = nextToLoadIndex;
+            }
+            nextToLoadIndex += 1;
+            loadIntoNewTab(filePath, loadNextTab);
+        } else {
+            switchToTab(lastOpenedIndex);
+        }
+    };
+    loadNextTab();    
+} else {
+    createBlankTab();
 }
 		</script>
 		<!--
