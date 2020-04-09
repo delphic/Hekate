@@ -34,6 +34,7 @@ fieldset #fileMode { float: right; }
 		    <input type="button" class="button" value="New" onclick="createBlankTab();" />
 			<input type="button" class="button" value="Open" onclick="openDialog();" />
 			<input type="button" class="button" value="Save" onclick="saveCurrentTab();" />
+			<input type="button" class="button" value="Close" onclick="closeCurrentTab();" />
 			<nav id="tabHolder">
 			</nav>
 		</fieldset>
@@ -50,7 +51,6 @@ fieldset #fileMode { float: right; }
 // preserves across reloads)
 
 // TODO: convert last opened file path to last focused tabIndex
-// TODO: Close tab option
 
 // TODO: sub to event for editor content changed (once files loaded) 
 // and mark tab as changed if appropriate (compare to save lasted value on tab)
@@ -88,7 +88,13 @@ var FileTab /* = module.exports */ = function() {
         },
         saveFile: function(callback) {
         	if (this.filePath) {
-        		fs.writeFile(this.filePath, this.editor.getValue(), callback);
+        	    let tab = this;
+        		fs.writeFile(this.filePath, this.editor.getValue(), function(error) {
+        		    tab.lastSavedData = tab.editor.getValue();
+    		        if (callback) {
+    		            callback(error);
+    		        }
+        		});
         	}
         }
         
@@ -113,7 +119,8 @@ var currentFilePath = "";
 var configPath = app.getPath('userData') + "/config.json";
 
 var tabs = [];
-var currentFileTab;
+var tabElements = [];
+var currentTabIndex = -1;
 
 var editor = ace.edit("editor");
 
@@ -218,13 +225,17 @@ var getUserDocumentsPath = function() {
 /* Editor Display Updates */
 var logMessage = function(message) {
     // TODO: should probably escape this
-    currentFileTab.lastMessage = message;
+    if (currentTabIndex >= 0 && currentTabIndex < tabs.length) {
+        tabs[currentTabIndex].lastMessage = message;
+    }
     document.getElementById("logMessage").innerHTML = message;
     // Clear after timeout?
 };
 
 var logError = function(error) {
-    currentFileTab.lastMessage = error.message;
+    if (currentTabIndex >= 0 && currentTabIndex < tabs.length) {
+        tabs[currentTabIndex].lastMessage = error.message;
+    }
     document.getElementById("logMessage").innerHTML = "<span style='color:red'>" + error.message + "</span>";
     console.log(JSON.stringify(error));
 };
@@ -268,10 +279,10 @@ var updateFileModeDisplay = function(fileMode) {
     document.getElementById("fileMode").innerHTML = fileMode;
 };
 
-var switchToTab = function(tabIndex) {
-    if ((!currentFileTab || currentFileTab.index != tabIndex) && tabIndex < tabs.length) {
-    	if (currentFileTab) {    	
-        	currentFileTab.dataCache = currentFileTab.editor.getValue();
+var switchToTab = function(tabIndex, force) {
+    if ((currentTabIndex != tabIndex || force) && tabIndex < tabs.length) {
+    	if (currentTabIndex != tabIndex && currentTabIndex >= 0) {    	
+        	tabs[currentTabIndex].dataCache = tabs[currentTabIndex].editor.getValue();
         }
 
         let tab = tabs[tabIndex];
@@ -285,7 +296,7 @@ var switchToTab = function(tabIndex) {
 		// ^^ This feels they don't want us to use this what with the $
         tab.fileMode = setFileModeDisplay(tab.filePath, tab.editor);
 
-        currentFileTab = tab;
+        currentTabIndex = tabIndex;
         currentFilePath = tab.filePath;
         updateFileModeDisplay(tab.fileMode);
         logMessage(tab.lastMessage);
@@ -312,7 +323,7 @@ var openDialog = function() {
 	    for(let i = 0, l = tabs.length; i < l; i++) {
 	        if (tabs[i].filePath == files[0]) {
 	            foundPath = true;
-	            if (currentFileTab != tabs[i]) {
+	            if (currentTabIndex != i) {
     	            switchToTab(i);
 	            }
 	            break;
@@ -334,9 +345,12 @@ var loadIntoNewTab = function(filePath, callback) {
     tabElement.type = "button";
     tabElement.className = "button";
     tabElement.value = filePath ? getFileName(filePath) : "New File";
+    tabElements.push(tabElement);
+
     tabElement.onclick = function() {
         switchToTab(index);
     };
+    
     document.getElementById("tabHolder").appendChild(tabElement);
     
     if (filePath) {
@@ -361,11 +375,48 @@ var loadIntoNewTab = function(filePath, callback) {
 };
 
 var saveCurrentTab = function() {
-	if (currentFileTab) {
-		saveTab(currentFileTab);
+	if (currentTabIndex >= 0) {
+		saveTab(tabs[currentTabIndex]);
 	} else {
-		logError("No tab to save!")
+	    // TODO: Disable button in these circumstances
+		logError({ message: "No tab to save!" });
 	}
+};
+
+var closeCurrentTab = function() {
+    if (currentTabIndex >= 0) {
+        var tab = tabs[currentTabIndex];
+        if (tab.lastSavedData == tab.editor.getValue() || confirm("You have unsaved data, are you sure?")) {
+            var element = tabElements[currentTabIndex];
+            var filePath = tab.filePath;
+            var configIndex = config.openFilePaths.indexOf(filePath);
+            if (configIndex >= 0) {
+                config.openFilePaths.splice(configIndex, 1);
+                saveConfig();
+            }
+            tabs.splice(currentTabIndex, 1);
+            tabElements.splice(currentTabIndex, 1);
+            document.getElementById("tabHolder").removeChild(element);
+            for(let i = 0, l = tabElements.length; i < l; i++) {
+                tabElements[i].onclick = function() {
+                    switchToTab(i);
+                };
+            }
+            if (currentTabIndex >= tabs.length) {
+                currentTabIndex -= 1;
+            }
+            if (currentTabIndex >= 0) {
+                switchToTab(currentTabIndex, true);
+            } else {
+                // TODO: Better default state
+                editor.setValue("");
+                logMessage("");
+            }
+        }        
+    } else {
+	    // TODO: Disable button in these circumstances
+        logError({ message: "No tab to close!"});
+    }
 };
 
 var saveTab  = function(tab) {
@@ -386,9 +437,7 @@ var saveTab  = function(tab) {
     	    tab.saveFile(function(error) {
     			if (!error) {
     			    if (saveAs) {
-    			        let tabElements = document.getElementById("tabHolder").childNodes;
-    			        tabElements[tab.index + 1].value = getFileName(filePath);
-    			        // ^^ apparently "text" is a child node, perhaps we should cache the tab elements
+    			        tabElements[tab.index].value = getFileName(filePath);
         			    tab.fileMode = setFileModeDisplay(tab.filePath, tab.editor);
         			    updateFileModeDisplay(tab.fileMode);
     			    }
@@ -465,8 +514,6 @@ if (config.openFilePaths.length > 0) {
         }
     };
     loadNextTab();    
-} else {
-    createBlankTab();
 }
 		</script>
 		<!--
