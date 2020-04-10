@@ -26,7 +26,7 @@ fieldset nav input.button { margin-left: 5px; }
 nav input.selected { 
     background-color: white;
     border: 1px solid #666;
-    border-radius: 1px;
+    border-radius: 2px;
 }
 
 fieldset p { display:inline-block; margin-top: 9px; }
@@ -58,11 +58,11 @@ fieldset #fileMode { float: right; }
 // TODO: sub to event for editor content changed (once files loaded) 
 // and mark tab as changed if appropriate (compare to save lasted value on tab)
 
-// TODO: Selected Tab Styles
 // TODO: Store editor session data and restore when switching between tabs 
 // TODO: Ability to reorder Tabs
 
-// TODO: Move Config to a 'class' 
+// TODO: Consider backup process which saves config and back-ups of unsaved changes in case of 
+// crash - currently config saves only on reload and exit
 
 // TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
 // Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
@@ -73,129 +73,19 @@ const { app, dialog } = require('electron').remote;
 const currentWindow = require('electron').remote.getCurrentWindow();
 
 var fs = require('fs');
+var FileTab = require('./src/fileTab')
 
-var FileTab /* = module.exports */ = function() {
-    var exports = {};
-    var prototype = {
-        loadFile: function(filePath, callback) {
-        	if (filePath) {
-        	    let tab = this;
-        		fs.readFile(filePath, 'utf-8', function(error, data) {
-        			if (!error) {
-        			    tab.lastSavedData = data;
-        				tab.dataCache = data;
-        				tab.filePath = filePath;
-        			}
-    				callback(error, data);
-        		});
-	        }
-        },
-        saveFile: function(callback) {
-        	if (this.filePath) {
-        	    let tab = this;
-        		fs.writeFile(this.filePath, this.editor.getValue(), function(error) {
-        		    tab.lastSavedData = tab.editor.getValue();
-    		        if (callback) {
-    		            callback(error);
-    		        }
-        		});
-        	}
-        }
-        
-    };
-    var create = exports.create = function(params) {
-        var tab = Object.create(prototype);
-        tab.editor = params.editor;
-        tab.dataCache = "";
-        tab.filePath = "";
-        tab.lastSavedData = "";
-        tab.lastMessage = "Created new tab";
-        return tab;
-    };
-    
-    return exports;
-}();
-
-var config;
 var lastOpenedFilePath = "";
 var currentFilePath = "";
+
 var configPath = app.getPath('userData') + "/config.json";
+var config = require('./src/config').load(configPath);
 
 var tabs = [];
 var tabElements = [];
 var currentTabIndex = -1;
 
 var editor = ace.edit("editor");
-
-/* Config  */
-var loadConfig = function() {
-	try {
-		config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-		if (!config.hasOwnProperty("openFilePaths")) {
-		    config.openFilePaths = [];
-		}
-		if (!config.hasOwnProperty("lastOpenedFilePath")) {
-		    config.lastOpenedFilePath = null;
-		}
-		if (!config.hasOwnProperty("aceThemePath")) {
-		    config.aceThemePath = "ace/theme/monokai";
-		}
-		if (!config.hasOwnProperty("lastFocusedTab")) {
-		    config.lastFocusedTab = 0;
-		}
-	} catch (error) {
-		// Pokemon - file doesn't exist
-	    config = {
-	        openFilePaths: [],
-	        lastFocusedTab: 0,
-	        lastOpenedFilePath: "",
-	        aceThemePath: "ace/theme/monokai",
-	    };
-	}
-}
-
-var getAceTheme = function() {
-    if (config && config.hasOwnProperty("aceThemePath")) {
-		return config["aceThemePath"];
-	}
-	return "ace/theme/monokai"; // Obviously the best default theme
-};
-
-var setAceTheme = function(themePath) {
-    if (!config.hasOwnProperty("aceThemePath") || config.aceThemePath != themePath) {
-        config["aceThemePath"] = themePath;
-    }
-};
-
-var getLastOpenedFilePath = function() {
-	return config.lastOpenedFilePath;
-};
-
-var setLastOpenedFilePath = function(path) {
-    let changeMade = false;
-    if (!config.openFilePaths.includes(path)) {
-        config.openFilePaths.push(path);
-        changeMade = true;
-    }
-    
-    if (config.lastOpenedFilePath != path) {
-        config.lastOpenedFilePath = path;
-        changeMade = true;
-    }
-    
-    if (config.lastOpenedTab != currentTabIndex) {
-        config.lastOpenedTab = currentTabIndex;
-        changeMade = true;
-    }
-    
-    if (changeMade) {
-        saveConfig();
-    }
-};
-
-var saveConfig = function() {
-   	fs.writeFile(configPath, JSON.stringify(config), function(error) { });
-};
 
 /* Utils */
 var removeAllChildNodes = function(element) {
@@ -375,7 +265,7 @@ var loadIntoNewTab = function(filePath, callback) {
     			// TODO: probably should separate this, but I think log message relys on currentTabIndex being set
     			// So would need to update log message to have a tab context instead
                 logMessage("Loaded " + filePath);
-                setLastOpenedFilePath(filePath);
+                config.update({ openedFilePath: filePath });
                 // TODO: Move to config class
             	// TODO: Watch file and notify of external changes
             	if (callback) {
@@ -406,11 +296,6 @@ var closeCurrentTab = function() {
         if (tab.lastSavedData == tab.editor.getValue() || confirm("You have unsaved data, are you sure?")) {
             var element = tabElements[currentTabIndex];
             var filePath = tab.filePath;
-            var configIndex = config.openFilePaths.indexOf(filePath);
-            if (configIndex >= 0) {
-                config.openFilePaths.splice(configIndex, 1);
-                saveConfig();
-            }
             tabs.splice(currentTabIndex, 1);
             tabElements.splice(currentTabIndex, 1);
             document.getElementById("tabHolder").removeChild(element);
@@ -430,6 +315,8 @@ var closeCurrentTab = function() {
                 setFileModeDisplay("", editor);
                 logMessage("");
             }
+            
+            config.update({ closedFilePath: filePath, focusedTab: currentTabIndex });
         }        
     } else {
 	    // TODO: Disable button in these circumstances
@@ -457,7 +344,7 @@ var saveTab  = function(tab) {
     			    if (saveAs) {
     			        tabElements[tab.index].value = getFileName(filePath);
         			    setFileModeDisplay(tab.filePath, tab.editor);
-        			    setLastOpenedFilePath(tab.filePath);
+        			    config.update({ openedFilePath: tab.filePath });
     			    }
     				logMessage("Saved " + filePath); 
     			} else {
@@ -468,7 +355,7 @@ var saveTab  = function(tab) {
     }
 };
 
-/* Function on a tab */
+/* Folder Manangement Function  */
 var deleteFile = function(filePath) {
 	if (filePath && window.confirm("Are you sure?")) {
 		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
@@ -488,6 +375,9 @@ var onKeyPress = function(event) {
     if (event.ctrlKey) {
         switch(event.key)
         {
+            case "r": 
+                config.save();
+                break;
             case "n":
                 createBlankTab();
                 break;
@@ -509,15 +399,14 @@ window.addEventListener('beforeunload', function(event) {
     event.preventDefault(); // This is as per spec
     event.returnValue = ''; // This is required by Chrome
     */
-    setAceTheme(editor.getTheme());
+    config.aceThemePath = editor.getTheme();
     config.lastFocusedTab = currentTabIndex;
-    saveConfig();
+    config.save();
     // ^^ Should bring these under on beforeunload method on config class
 });
 
 // Start-up logic
-loadConfig();
-editor.setTheme(getAceTheme());
+editor.setTheme(config.aceThemePath);
 if (config.openFilePaths.length > 0) {
     let nextToLoadIndex = 0;
     var loadNextTab = function() {
