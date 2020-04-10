@@ -50,8 +50,6 @@ fieldset #fileMode { float: right; }
 // editor.onChangeMode may be what we need for this (may also want to save session data, so undo/redo
 // preserves across reloads)
 
-// TODO: convert last opened file path to last focused tabIndex
-
 // TODO: sub to event for editor content changed (once files loaded) 
 // and mark tab as changed if appropriate (compare to save lasted value on tab)
 
@@ -137,10 +135,14 @@ var loadConfig = function() {
 		if (!config.hasOwnProperty("aceThemePath")) {
 		    config.aceThemePath = "ace/theme/monokai";
 		}
+		if (!config.hasOwnProperty("lastFocusedTab")) {
+		    config.lastFocusedTab = 0;
+		}
 	} catch (error) {
 		// Pokemon - file doesn't exist
 	    config = {
 	        openFilePaths: [],
+	        lastFocusedTab: 0,
 	        lastOpenedFilePath: "",
 	        aceThemePath: "ace/theme/monokai",
 	    };
@@ -157,7 +159,6 @@ var getAceTheme = function() {
 var setAceTheme = function(themePath) {
     if (!config.hasOwnProperty("aceThemePath") || config.aceThemePath != themePath) {
         config["aceThemePath"] = themePath;
-        saveConfig();
     }
 };
 
@@ -174,6 +175,11 @@ var setLastOpenedFilePath = function(path) {
     
     if (config.lastOpenedFilePath != path) {
         config.lastOpenedFilePath = path;
+        changeMade = true;
+    }
+    
+    if (config.lastOpenedTab != currentTabIndex) {
+        config.lastOpenedTab = currentTabIndex;
         changeMade = true;
     }
     
@@ -280,7 +286,7 @@ var updateFileModeDisplay = function(fileMode) {
 };
 
 var switchToTab = function(tabIndex, force) {
-    if ((currentTabIndex != tabIndex || force) && tabIndex < tabs.length) {
+    if ((currentTabIndex != tabIndex || force) && tabIndex >= 0 && tabIndex < tabs.length) {
     	if (currentTabIndex != tabIndex && currentTabIndex >= 0) {    	
         	tabs[currentTabIndex].dataCache = tabs[currentTabIndex].editor.getValue();
         }
@@ -356,7 +362,9 @@ var loadIntoNewTab = function(filePath, callback) {
     if (filePath) {
         tab.loadFile(filePath, function(error, data) {
             if (!error) {
-    			switchToTab(index);
+    			switchToTab(index);     
+    			// TODO: probably should separate this, but I think log message relys on currentTabIndex being set
+    			// So would need to update log message to have a tab context instead
                 logMessage("Loaded " + filePath);
                 setLastOpenedFilePath(filePath);
                 // TODO: Move to config class
@@ -492,25 +500,23 @@ window.addEventListener('beforeunload', function(event) {
     event.returnValue = ''; // This is required by Chrome
     */
     setAceTheme(editor.getTheme());
+    config.lastFocusedTab = currentTabIndex;
+    saveConfig();
+    // ^^ Should bring these under on beforeunload method on config class
 });
 
 // Start-up logic
 loadConfig();
 editor.setTheme(getAceTheme());
 if (config.openFilePaths.length > 0) {
-    lastOpenedFilePath = getLastOpenedFilePath();
-    let lastOpenedIndex = 0; // TODO: Just store focused index and use that instead
     let nextToLoadIndex = 0;
     var loadNextTab = function() {
         if (nextToLoadIndex < config.openFilePaths.length) {
             let filePath = config.openFilePaths[nextToLoadIndex]; 
-            if (filePath == lastOpenedFilePath) {
-                lastOpenedIndex = nextToLoadIndex;
-            }
             nextToLoadIndex += 1;
-            loadIntoNewTab(filePath, loadNextTab);
+            loadIntoNewTab(filePath, loadNextTab); // Create New Tab only plz (no switch to tab)
         } else {
-            switchToTab(lastOpenedIndex);
+            switchToTab(config.lastFocusedTab, true);
         }
     };
     loadNextTab();    
