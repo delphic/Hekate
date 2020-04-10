@@ -124,18 +124,18 @@ var getUserDocumentsPath = function() {
 };
 
 /* Editor Display Updates */
-var logMessage = function(message) {
+var logMessage = function(index, message) {
     // TODO: should probably escape this
-    if (currentTabIndex >= 0 && currentTabIndex < tabs.length) {
-        tabs[currentTabIndex].lastMessage = message;
+    if (index >= 0 && index < tabs.length) {
+        tabs[index].lastMessage = message;
     }
     document.getElementById("logMessage").innerHTML = message;
     // Clear after timeout?
 };
 
-var logError = function(error) {
-    if (currentTabIndex >= 0 && currentTabIndex < tabs.length) {
-        tabs[currentTabIndex].lastMessage = error.message;
+var logError = function(index, error) {
+    if (index >= 0 && index < tabs.length) {
+        tabs[index].lastMessage = error.message;
     }
     document.getElementById("logMessage").innerHTML = "<span style='color:red'>" + error.message + "</span>";
     console.log(JSON.stringify(error));
@@ -204,14 +204,15 @@ var switchToTab = function(tabIndex, force) {
         currentTabIndex = tabIndex;
         currentFilePath = tab.filePath;
         setFileModeDisplay(tab.filePath, tab.editor);
-        logMessage(tab.lastMessage);
+        logMessage(tabIndex, tab.lastMessage);
     }
 };
 
 var createBlankTab = function() {
     // Bit of a hack 
     // should probably seperate the creating new tab from loading functionality
-    loadIntoNewTab("");
+    let index = createNewTab("");
+    switchToTab(index);
 };
 
 
@@ -235,16 +236,17 @@ var openDialog = function() {
 	        }
 	    }
 	    if (!foundPath) {
-    	    loadIntoNewTab(files[0]);
+	        let index = createNewTab(files[0]);
+    	    loadIntoTab(index, files[0], function() {
+    	        switchToTab(index);
+    	    });
 	    }
 	}
 };
 
-var loadIntoNewTab = function(filePath, callback) {
-    // Currently reusing editor
+var createNewTab = function(filePath) {
     let tab = FileTab.create({ editor: editor });
     let index = tabs.push(tab) - 1;
-    tab.index = index;
 
     let tabElement = document.createElement("input");
     tabElement.type = "button";
@@ -255,16 +257,23 @@ var loadIntoNewTab = function(filePath, callback) {
     tabElement.onclick = function() {
         switchToTab(index);
     };
-    
+
     document.getElementById("tabHolder").appendChild(tabElement);
+
+    return index;
+};
+
+var loadIntoTab = function(index, filePath, callback) {
+    // Currently reusing editor
+    let tab = null;
+    if (index >= 0 && index <= tabs.length) {
+        tab = tabs[index];
+    }
     
-    if (filePath) {
+    if (tab) {
         tab.loadFile(filePath, function(error, data) {
-            if (!error) {
-    			switchToTab(index);     
-    			// TODO: probably should separate this, but I think log message relys on currentTabIndex being set
-    			// So would need to update log message to have a tab context instead
-                logMessage("Loaded " + filePath);
+            if (!error) { 
+                logMessage(index, "Loaded " + filePath);
                 config.update({ openedFilePath: filePath });
                 // TODO: Move to config class
             	// TODO: Watch file and notify of external changes
@@ -272,59 +281,71 @@ var loadIntoNewTab = function(filePath, callback) {
             	    callback();
             	}
             } else {
-    			logError(error);
+    			logError(index, error);
             }
         });        
     } else {
-        switchToTab(index);
-        callback();
+        logError(-1, "No tab to load into");
     }
 };
 
 var saveCurrentTab = function() {
 	if (currentTabIndex >= 0) {
-		saveTab(tabs[currentTabIndex]);
+		saveTab(currentTabIndex);
 	} else {
 	    // TODO: Disable button in these circumstances
-		logError({ message: "No tab to save!" });
+		logError(-1, { message: "No tab to save!" });
 	}
 };
 
 var closeCurrentTab = function() {
     if (currentTabIndex >= 0) {
-        var tab = tabs[currentTabIndex];
-        if (tab.lastSavedData == tab.editor.getValue() || confirm("You have unsaved data, are you sure?")) {
-            var element = tabElements[currentTabIndex];
-            var filePath = tab.filePath;
-            tabs.splice(currentTabIndex, 1);
-            tabElements.splice(currentTabIndex, 1);
-            document.getElementById("tabHolder").removeChild(element);
-            for(let i = 0, l = tabElements.length; i < l; i++) {
-                tabElements[i].onclick = function() {
-                    switchToTab(i);
-                };
-            }
-            if (currentTabIndex >= tabs.length) {
-                currentTabIndex -= 1;
-            }
-            if (currentTabIndex >= 0) {
-                switchToTab(currentTabIndex, true);
-            } else {
-                // TODO: Better default state
-                editor.setValue("");
-                setFileModeDisplay("", editor);
-                logMessage("");
-            }
-            
-            config.update({ closedFilePath: filePath, focusedTab: currentTabIndex });
-        }        
+        closeTab(currentTabIndex);
     } else {
 	    // TODO: Disable button in these circumstances
-        logError({ message: "No tab to close!"});
+        logError(-1, { message: "No tab to close!"});
     }
 };
 
-var saveTab  = function(tab) {
+var closeTab = function(index) {
+    let tab = null;
+    if (index >= 0 && index < tabs.length) {
+        tab = tabs[index];
+    }
+    
+    if (tab && (tab.lastSavedData == tab.editor.getValue() || confirm("You have unsaved data, are you sure?"))) {
+        var element = tabElements[currentTabIndex];
+        var filePath = tab.filePath;
+        tabs.splice(currentTabIndex, 1);
+        tabElements.splice(currentTabIndex, 1);
+        document.getElementById("tabHolder").removeChild(element);
+        for(let i = 0, l = tabElements.length; i < l; i++) {
+            tabElements[i].onclick = function() {
+                switchToTab(i);
+            };
+        }
+        if (currentTabIndex >= tabs.length) {
+            currentTabIndex -= 1;
+        }
+        if (currentTabIndex >= 0) {
+            switchToTab(currentTabIndex, true);
+        } else {
+            // TODO: Better default state
+            editor.setValue("");
+            setFileModeDisplay("", editor);
+            logMessage(-1, "");
+        }
+            
+        config.update({ closedFilePath: filePath, focusedTab: currentTabIndex });
+    } 
+};
+
+var saveTab  = function(index) {
+    let tab = null;
+    if (index >= 0 && index < tabs.length) {
+        tab = tabs[index];
+    }
+    
     if (tab) {
         let saveAs = false;
     	let filePath = tab.filePath;
@@ -342,13 +363,13 @@ var saveTab  = function(tab) {
     	    tab.saveFile(function(error) {
     			if (!error) {
     			    if (saveAs) {
-    			        tabElements[tab.index].value = getFileName(filePath);
+    			        tabElements[index].value = getFileName(filePath);
         			    setFileModeDisplay(tab.filePath, tab.editor);
         			    config.update({ openedFilePath: tab.filePath });
     			    }
-    				logMessage("Saved " + filePath); 
+    				logMessage(index, "Saved " + filePath); 
     			} else {
-    				logError(error);
+    				logError(index, error);
     			}
     		});
     	}
@@ -361,9 +382,9 @@ var deleteFile = function(filePath) {
 		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
 		fs.unlink(filePath, function(error) {
 			if (error) {
-				logError(error);
+				logError(-1, error);
 			} else {
-				logMessage("Deleted " + filePath);
+				logMessage(-1, "Deleted " + filePath);
 			}
 		});
 	}
@@ -410,12 +431,14 @@ editor.setTheme(config.aceThemePath);
 if (config.openFilePaths.length > 0) {
     let nextToLoadIndex = 0;
     var loadNextTab = function() {
+        // Switch to last focused tab ASAP 
+        if (nextToLoadIndex - 1 == config.lastFocusedTab) {
+            switchToTab(config.lastFocusedTab, true);
+        }
         if (nextToLoadIndex < config.openFilePaths.length) {
             let filePath = config.openFilePaths[nextToLoadIndex]; 
             nextToLoadIndex += 1;
-            loadIntoNewTab(filePath, loadNextTab); // Create New Tab only plz (no switch to tab)
-        } else {
-            switchToTab(config.lastFocusedTab, true);
+            loadIntoTab(createNewTab(filePath), filePath, loadNextTab);
         }
     };
     loadNextTab();    
