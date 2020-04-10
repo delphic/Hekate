@@ -199,7 +199,6 @@ var switchToTab = function(tabIndex, force) {
 		tab.editor.selection.moveCursorTo(0, 0, false);
 		tab.editor.session.$undoManager.reset(); 
 		// ^^ This feels they don't want us to use this what with the $
-        
 
         currentTabIndex = tabIndex;
         currentFilePath = tab.filePath;
@@ -209,9 +208,7 @@ var switchToTab = function(tabIndex, force) {
 };
 
 var createBlankTab = function() {
-    // Bit of a hack 
-    // should probably seperate the creating new tab from loading functionality
-    let index = createNewTab("");
+    let index = createNewTab();
     switchToTab(index);
 };
 
