@@ -1,0 +1,23 @@
+html { padding: 0; margin: 0; }
+body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; overflow-y: hidden; }
+#editor { height: calc(100% - 60px); }
+/* TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
+/* Consider fr units https://css-tricks.com/introduction-fr-css-unit/ */ 
+fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; }
+fieldset div { margin: 5px 0; }
+fieldset input, fieldset select { width: 100px; }
+fieldset input.button { 
+    width: auto; 
+    margin: 5px 0 0;
+    padding: 5px 10px;
+}
+fieldset nav { display: inline-block; margin-left: 5px; }
+fieldset nav input.button { margin-left: 5px; }
+nav .selected { 
+    background-color: white;
+    border: 1px solid #666;
+    border-radius: 2px;
+}
+
+fieldset p { display:inline-block; margin-top: 9px; }
+fieldset #fileMode { float: right; }
