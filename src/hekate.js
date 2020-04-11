@@ -49,7 +49,7 @@ var getDirectoryStructure = function(path) {
 	let dirents = fs.opendirSync(path, "utf-8");
 	let next = dirents.readSync();
 
-	let entry = { name: getFileName(path), entries: [], path: path };
+	let entry = { name: getDirectoryName(path) + "/", entries: [], path: path };
 	while (next) {
 	    if (next.isFile()) {
     		entry.entries.push({ name: next.name });
@@ -81,9 +81,17 @@ var getFileExtension = function(filePath) {
     return filePath.slice((filePath.lastIndexOf(".") - 1 >>> 0) + 2);  
 };
 
-// Technically this is get name from path, works for directories and files
 var getFileName = function(filePath) {
     return filePath.slice(filePath.lastIndexOf("/") + 1);
+};
+
+var getDirectoryName = function(dirPath) {
+    // Check to see if the direcoty path includes a trailing "/"
+    // it shouldn't but it's an easy mistake to make
+    if (dirPath.lastIndexOf("/") == dirPath.length - 1) {
+        dirPath = dirPath.slice(0, dirPath.lastIndexOf("/"));
+    }
+    return dirPath.slice(dirPath.lastIndexOf("/") + 1);
 };
 
 var getPath = function(filePath) {
@@ -188,7 +196,7 @@ var createBlankTab = function() {
 };
 
 /* File Save / Load */ 
-var openDialog = function() {
+var openFileDialog = function() {
     // https://www.electronjs.org/docs/api/dialog
 	let files = dialog.showOpenDialogSync(currentWindow, {
 		title: "Open File",
@@ -199,6 +207,17 @@ var openDialog = function() {
 	    openFile(files[0]);
 	}
 };
+
+var openDirectoryDialog = function() {
+    let directories = dialog.showOpenDialogSync(currentWindow, {
+        title: "Open Project Folder",
+        defaultPath: currentFilePath ? getPath(currentFilePath) : getUserDocumentsPath(),
+        properties: [ "openDirectory" ]
+    });
+    if (directories && directories[0]) {
+        openFolder(directories[0]);
+    }
+}
 
 var openFile = function(filePath) {
     let foundPath = false;
@@ -351,77 +370,16 @@ var saveTab  = function(index) {
     }
 };
 
-/* Folder Manangement Function  */
-var deleteFile = function(filePath) {
-	if (filePath && window.confirm("Are you sure?")) {
-		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
-		fs.unlink(filePath, function(error) {
-			if (error) {
-				logError(-1, error);
-			} else {
-				logMessage(-1, "Deleted " + filePath);
-			}
-		});
-	}
+/* Folder Manangement */
+var openFolder = function(dirPath) {
+    let structure = getDirectoryStructure(dirPath); // Incorperate fold info
+    let container = document.getElementById('folderView');
+    removeAllChildNodes(container);
+    var result = buildElementForFolder(structure);
+    result.className = ""; // TODO: Set Fold state using store info
+    container.appendChild(result);
+    config.openDirectory = dirPath;
 };
-
-/* Tab independent */
-/* Set Hotkeys */
-var onKeyPress = function(event) {
-    if (event.ctrlKey) {
-        switch(event.key)
-        {
-            case "r": 
-                config.save();
-                break;
-            case "n":
-                createBlankTab();
-                break;
-            case "s":
-                saveCurrentTab();
-                break;
-            case "o":
-                openDialog();
-                break;
-            case "F4":
-                // BUG: this doesnt' work even though as far as I can tell it should
-                closeCurrentTab();
-                break;
-        }
-    }
-};
-
-// Unload Management
-window.addEventListener('beforeunload', function(event) {
-    // TODO: Check for unsaved changes and prompt if there are before closing
-    /* 
-    // To prevent unloading...
-    event.preventDefault(); // This is as per spec
-    event.returnValue = ''; // This is required by Chrome
-    */
-    config.aceThemePath = editor.getTheme();
-    config.lastFocusedTab = currentTabIndex;
-    config.save();
-    // ^^ Should bring these under on beforeunload method on config class
-});
-
-// Start-up logic
-editor.setTheme(config.aceThemePath);
-if (config.openFilePaths.length > 0) {
-    let nextToLoadIndex = 0;
-    var loadNextTab = function() {
-        // Switch to last focused tab ASAP 
-        if (nextToLoadIndex - 1 == config.lastFocusedTab) {
-            switchToTab(config.lastFocusedTab, true);
-        }
-        if (nextToLoadIndex < config.openFilePaths.length) {
-            let filePath = config.openFilePaths[nextToLoadIndex]; 
-            nextToLoadIndex += 1;
-            loadIntoTab(createNewTab(filePath), filePath, loadNextTab);
-        }
-    };
-    loadNextTab();
-}
 
 var buildElementForFolder = function(structure) {
     let result = document.createElement('ul');
@@ -452,12 +410,75 @@ var buildElementForFolder = function(structure) {
     return result;
 };
 
-if (config.lastOpenedFilePath) {
-    let dirPath = "/home/pi/Hekate";
-    let structure = getDirectoryStructure(dirPath); // Incorperate fold info
-    let container = document.getElementById('folderView');
-    removeAllChildNodes(container);
-    var result = buildElementForFolder(structure);
-    result.className = ""; // TODO: Set Fold state using store info
-    container.appendChild(result);
+var deleteFile = function(filePath) {
+	if (filePath && window.confirm("Are you sure?")) {
+		// TODO: Consider Undo over confirm https://alistapart.com/article/neveruseawarning/
+		fs.unlink(filePath, function(error) {
+			if (error) {
+				logError(-1, error);
+			} else {
+				logMessage(-1, "Deleted " + filePath);
+			}
+		});
+	}
+};
+
+/* Tab independent */
+/* Set Hotkeys */
+var onKeyPress = function(event) {
+    if (event.ctrlKey) {
+        switch(event.key)
+        {
+            case "r": 
+                config.save();
+                break;
+            case "n":
+                createBlankTab();
+                break;
+            case "s":
+                saveCurrentTab();
+                break;
+            case "o":
+                openFileDialog();
+                break;
+            case "F4":
+                // BUG: this doesnt' work even though as far as I can tell it should
+                closeCurrentTab();
+                break;
+        }
+    }
+};
+
+// Unload Management
+window.addEventListener('beforeunload', function(event) {
+    // TODO: Check for unsaved changes and prompt if there are before closing
+    /* 
+    // To prevent unloading...
+    event.preventDefault(); // This is as per spec
+    event.returnValue = ''; // This is required by Chrome
+    */
+    config.aceThemePath = editor.getTheme();
+    config.lastFocusedTab = currentTabIndex;
+    config.save();
+});
+
+// Start-up logic
+editor.setTheme(config.aceThemePath);
+if (config.openFilePaths.length > 0) {
+    let nextToLoadIndex = 0;
+    var loadNextTab = function() {
+        // Switch to last focused tab ASAP 
+        if (nextToLoadIndex - 1 == config.lastFocusedTab) {
+            switchToTab(config.lastFocusedTab, true);
+        }
+        if (nextToLoadIndex < config.openFilePaths.length) {
+            let filePath = config.openFilePaths[nextToLoadIndex]; 
+            nextToLoadIndex += 1;
+            loadIntoTab(createNewTab(filePath), filePath, loadNextTab);
+        }
+    };
+    loadNextTab();
+}
+if (config.openDirectory) {
+    openFolder(config.openDirectory);    
 }

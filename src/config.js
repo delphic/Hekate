@@ -19,10 +19,14 @@ var Config = module.exports = function() {
     		if (!config.hasOwnProperty("lastFocusedTab")) {
     		    config.lastFocusedTab = 0;
     		}
+    		if (!config.hasOwnProperty("openDirectory")) {
+    		    config.openDirectory = null;
+    		}
     	} catch (error) {
     		// TODO: confirm error is that file doesn't exist
     	    config = {
     	        openFilePaths: [],
+    	        openDirectory: "",
     	        lastFocusedTab: 0,
     	        lastOpenedFilePath: "",
     	        aceThemePath: "ace/theme/monokai",  // Obviously the best default theme
@@ -47,6 +51,9 @@ var Config = module.exports = function() {
     	    }
     	    if (params.aceThemePath) {
     	        config.aceThemePath = params.aceThemePath;
+    	    }
+    	    if (params.openDirectory) {
+    	        config.openDirectory = params.openDirectory;
     	    }
     	};
     	

@@ -58,6 +58,9 @@ fieldset #fileMode { float: right; }
     margin: 10px 0;
     padding: 0;
 }
+#folderView ul span {
+    display: inline-block;
+}
 #folderView .collapsed li {
     display: none;
 }

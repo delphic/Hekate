@@ -12,8 +12,9 @@
 	</head>
 	<body onkeypress="onKeyPress(event);">
 		<fieldset id="controls">
+		    <input type="button" class="button" value="Project" onclick="openDirectoryDialog();" />
 		    <input type="button" class="button" value="New" onclick="createBlankTab();" />
-			<input type="button" class="button" value="Open" onclick="openDialog();" />
+			<input type="button" class="button" value="Open" onclick="openFileDialog();" />
 			<input type="button" class="button" value="Save" onclick="saveCurrentTab();" />
 			<input type="button" class="button" value="Close" onclick="closeCurrentTab();" />
 			<nav id="tabHolder"> 
