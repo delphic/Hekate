@@ -175,13 +175,11 @@ var switchToTab = function(tabIndex, force) {
             tabElements[tabIndex].classList.add("selected");
         }
         
+        tab.editor.setValue(tab.dataCache);
+        
         // TODO: Save Session Data instead and swap it
         // but do this if no session data exists
-        tab.editor.setValue(tab.dataCache);
-		tab.editor.selection.clearSelection();
-		tab.editor.selection.moveCursorTo(0, 0, false);
-		tab.editor.session.$undoManager.reset(); 
-		// ^^ This feels they don't want us to use this what with the $
+        tab.editor.session.setValue(tab.dataCache);
 
         currentTabIndex = tabIndex;
         currentFilePath = tab.filePath;
