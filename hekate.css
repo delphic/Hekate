@@ -39,7 +39,7 @@ fieldset #fileMode { float: right; }
     grid-row: 1;
     background-color: #999;
     padding: 0 10px;
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .mainWrapper #editor {
