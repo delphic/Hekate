@@ -43,16 +43,37 @@ var removeAllChildNodes = function(element) {
   } 
 };
 
-var getFileNamesInDir = function(path) {
-	let files = fs.opendirSync(path, "utf-8");
-	let file = files.readSync();
+var getDirectoryStructure = function(path) {
+    // TODO: Options for include hidden files and folders
+    // default right now is show hidden files, but not folders
+	let dirents = fs.opendirSync(path, "utf-8");
+	let next = dirents.readSync();
 
-	let fileNames = [];
-	while (file && file.isFile()) {
-		fileNames.push(file.name);
-		file = files.readSync();
+	let entry = { name: getFileName(path), entries: [], path: path };
+	while (next) {
+	    if (next.isFile()) {
+    		entry.entries.push({ name: next.name });
+	    } else if (next.isDirectory()) {
+	        if (next.name[0] != '.') {
+    	        entry.entries.push(getDirectoryStructure(path + "/" + next.name));
+	        }
+	    }
+		next = dirents.readSync();
 	}
-	return fileNames;
+	entry.entries.sort(function(a,b) {
+	    if (a.entries && !b.entries) {
+	        return -1;
+	    }
+	    else if (b.entries && !a.entries) {
+	        return 1;
+	    }
+	    else {
+	       if (a.name > b.name) { return 1; }
+	       if (a.name < b.name) { return -1; }
+	       return 0;
+	    }
+	});
+	return entry;
 };
 
 var getFileExtension = function(filePath) {
@@ -60,6 +81,7 @@ var getFileExtension = function(filePath) {
     return filePath.slice((filePath.lastIndexOf(".") - 1 >>> 0) + 2);  
 };
 
+// Technically this is get name from path, works for directories and files
 var getFileName = function(filePath) {
     return filePath.slice(filePath.lastIndexOf("/") + 1);
 };
@@ -123,7 +145,7 @@ var setFileModeDisplay = function(filePath, editor) {
             break;
         default:
             editor.session.setMode("ace/mode/text");
-            fileMode = "Plain Text"
+            fileMode = "Plain Text";
             break;
     }
     updateFileModeDisplay(fileMode);
@@ -165,7 +187,6 @@ var createBlankTab = function() {
     switchToTab(index);
 };
 
-
 /* File Save / Load */ 
 var openDialog = function() {
     // https://www.electronjs.org/docs/api/dialog
@@ -175,23 +196,27 @@ var openDialog = function() {
 		properties: [ "openFile" ]
 	});
 	if (files && files[0]) {
-	    let foundPath = false;
-	    for(let i = 0, l = tabs.length; i < l; i++) {
-	        if (tabs[i].filePath == files[0]) {
-	            foundPath = true;
-	            if (currentTabIndex != i) {
-    	            switchToTab(i);
-	            }
-	            break;
-	        }
-	    }
-	    if (!foundPath) {
-	        let index = createNewTab(files[0]);
-    	    loadIntoTab(index, files[0], function() {
-    	        switchToTab(index);
-    	    });
-	    }
+	    openFile(files[0]);
 	}
+};
+
+var openFile = function(filePath) {
+    let foundPath = false;
+    for(let i = 0, l = tabs.length; i < l; i++) {
+        if (tabs[i].filePath == filePath) {
+            foundPath = true;
+            if (currentTabIndex != i) {
+	            switchToTab(i);
+            }
+            break;
+        }
+    }
+    if (!foundPath) {
+        let index = createNewTab(filePath);
+	    loadIntoTab(index, filePath, function() {
+	        switchToTab(index);
+	    });
+    }
 };
 
 var createNewTab = function(filePath) {
@@ -359,6 +384,7 @@ var onKeyPress = function(event) {
                 openDialog();
                 break;
             case "F4":
+                // BUG: this doesnt' work even though as far as I can tell it should
                 closeCurrentTab();
                 break;
         }
@@ -394,5 +420,44 @@ if (config.openFilePaths.length > 0) {
             loadIntoTab(createNewTab(filePath), filePath, loadNextTab);
         }
     };
-    loadNextTab();    
+    loadNextTab();
+}
+
+var buildElementForFolder = function(structure) {
+    let result = document.createElement('ul');
+    result.className = "collapsed";
+    let directoryNameSpan = document.createElement('span');
+    directoryNameSpan.className = "directory";
+    directoryNameSpan.innerHTML = structure.name;
+    directoryNameSpan.onclick = function() {
+        result.className = result.className === "collapsed" ? "" : "collapsed";
+    };
+    result.appendChild(directoryNameSpan);
+    for(let i = 0, l = structure.entries.length; i < l; i++) {
+        let entry = structure.entries[i];
+        let li = document.createElement('li');
+        if (entry.entries) {
+            li.appendChild(buildElementForFolder(entry));
+        } else {
+            let fileNameSpan = document.createElement('span');
+            fileNameSpan.className = "file";
+            fileNameSpan.innerHTML = entry.name;
+            fileNameSpan.onclick = function() {
+                openFile(structure.path + "/" + entry.name);
+            };
+            li.appendChild(fileNameSpan);
+        }
+        result.appendChild(li);
+    }
+    return result;
+};
+
+if (config.lastOpenedFilePath) {
+    let dirPath = "/home/pi/Hekate";
+    let structure = getDirectoryStructure(dirPath); // Incorperate fold info
+    let container = document.getElementById('folderView');
+    removeAllChildNodes(container);
+    var result = buildElementForFolder(structure);
+    result.className = ""; // TODO: Set Fold state using store info
+    container.appendChild(result);
 }

@@ -1,9 +1,10 @@
 html { padding: 0; margin: 0; }
 body { padding: 0; margin: 0; background: #EEE; color: #111; font-family: monospace; overflow-y: hidden; }
-#editor { height: calc(100% - 60px); }
-/* TODO use https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
-/* Consider fr units https://css-tricks.com/introduction-fr-css-unit/ */ 
-fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; }
+
+/* TODO use grid layout on top and bottom bars too -https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Grid_Layout */
+
+/* top and bottom bars */
+fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; user-select: none; }
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { 
@@ -19,5 +20,49 @@ nav .selected {
     border-radius: 2px;
 }
 
-fieldset p { display:inline-block; margin-top: 9px; }
+fieldset p { display:inline-block; margin-top: 9px; user-select: text; }
 fieldset #fileMode { float: right; }
+
+/* Primary Content */
+.mainWrapper {
+    height: calc(100% - 60px);
+    display: grid;
+    grid-template-columns: 0 1fr;
+}
+
+.mainWrapper.expanded {
+    grid-template-columns: 250px 1fr;
+}
+
+.mainWrapper #folderView {
+    grid-column: 1 / 2;
+    grid-row: 1;
+    background-color: #999;
+    padding: 0 10px;
+    overflow-y: scroll;
+}
+
+.mainWrapper #editor {
+    grid-column: 2 / 3;
+    grid-row: 1;
+}
+
+/* Folder View */
+#folderView ul {
+    list-style: none;
+    margin: 10px;
+    padding: 0;
+    user-select: none;
+}
+#folderView ul li {
+    margin: 10px 0;
+    padding: 0;
+}
+#folderView .collapsed li {
+    display: none;
+}
+#folderView ul .directory {
+    margin-left: -10px;
+    cursor: pointer;
+    /* Show Fold arrow - expanded or not depending on if it's expanded or not! */
+}
