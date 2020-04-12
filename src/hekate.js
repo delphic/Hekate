@@ -6,7 +6,6 @@
 // TODO: sub to event for editor content changed (once files loaded) 
 // and mark tab as changed if appropriate (compare to save lasted value on tab)
 
-// TODO: Store editor session data and restore when switching between tabs 
 // TODO: Ability to reorder Tabs
 // TODO: Fix tab display issue when too many tabs!
 
@@ -120,43 +119,57 @@ var logError = function(index, error) {
     console.log(JSON.stringify(error));
 };
 
-var setFileModeDisplay = function(filePath, editor) {
+var getFileModePath = function(filePath) {
     let extension = getFileExtension(filePath);
-    let fileMode = "";
     switch(extension)
 	{
         case "js":
-            editor.session.setMode("ace/mode/javascript");
-            fileMode = "JavaScript";
-            break;
+            return "ace/mode/javascript";
         case "json":
-            editor.session.setMode("ace/mode/json");
-            fileMode = "JSON";
-            break;
+            return "ace/mode/json";
         case "htm":
         case "html":
-            editor.session.setMode("ace/mode/html");
-            fileMode = "HTML";
-            break;
+            return "ace/mode/html";
         case "glsl":
-            editor.session.setMode("ace/mode/glsl");
-            fileMode = "GLSL";
-            break;
+            return "ace/mode/glsl";
         case "markdown":
         case "md":
-            editor.session.setMode("ace/mode/markdown");
-            fileMode = "Markdown";
-            break;
+            return "ace/mode/markdown";
         case "css":
-            editor.session.setMode("ace/mode/css");
-            fileMode = "CSS";
+            return "ace/mode/css";
+        default:
+            return "ace/mode/text";
+    }
+};
+
+var setFileModeDisplay = function(fileMode) {
+    // Question: What mapping does ace settings panel use for this, can we reuse it?
+    let fileModeString = "";
+    switch(fileMode)
+	{
+        case "ace/mode/javascript":
+            fileModeString = "JavaScript";
+            break;
+        case "ace/mode/json":
+            fileModeString = "JSON";
+            break;
+        case "ace/mode/html":
+            fileModeString = "HTML";
+            break;
+        case "ace/mode/glsl":
+            fileModeString = "GLSL";
+            break;
+        case "ace/mode/markdown":
+            fileModeString = "Markdown";
+            break;
+        case "ace/mode/css":
+            fileModeString = "CSS";
             break;
         default:
-            editor.session.setMode("ace/mode/text");
-            fileMode = "Plain Text";
+            fileModeString = "Plain Text";
             break;
     }
-    updateFileModeDisplay(fileMode);
+    updateFileModeDisplay(fileModeString);
 };
 
 var updateFileModeDisplay = function(fileMode) {
@@ -175,15 +188,15 @@ var switchToTab = function(tabIndex, force) {
             tabElements[tabIndex].classList.add("selected");
         }
         
-        tab.editor.setValue(tab.dataCache);
-        
-        // TODO: Save Session Data instead and swap it
-        // but do this if no session data exists
-        tab.editor.session.setValue(tab.dataCache);
+        var fileModePath = getFileModePath(tab.filePath);
+	    if (!tab.session) {
+            tab.session = ace.createEditSession(tab.dataCache, fileModePath);
+        }
+        tab.editor.setSession(tab.session);
 
         currentTabIndex = tabIndex;
         currentFilePath = tab.filePath;
-        setFileModeDisplay(tab.filePath, tab.editor);
+        setFileModeDisplay(fileModePath);
         logMessage(tabIndex, tab.lastMessage);
     }
 };
@@ -322,9 +335,10 @@ var closeTab = function(index) {
         if (currentTabIndex >= 0) {
             switchToTab(currentTabIndex, true);
         } else {
-            // TODO: Better default state
             editor.setValue("");
-            setFileModeDisplay("", editor);
+            editor.session.setValue("");
+            editor.session.setMode("ace/mode/text");
+            setFileModeDisplay("ace/mode/text");
             logMessage(-1, "");
         }
             
@@ -356,7 +370,9 @@ var saveTab  = function(index) {
     			if (!error) {
     			    if (saveAs) {
     			        tabElements[index].value = getFileName(filePath);
-        			    setFileModeDisplay(tab.filePath, tab.editor);
+    			        let fileMode = getFileModePath(tab.filePath);
+    			        tab.editor.session.setMode(fileMode)
+        			    setFileModeDisplay(fileMode);
         			    config.update({ openedFilePath: tab.filePath });
     			    }
     				logMessage(index, "Saved " + filePath); 
