@@ -194,6 +194,7 @@ var switchToTab = function(tabIndex, force) {
         
         var fileModePath = getFileModePath(tab.filePath);
 	    if (!tab.session) {
+	        // TODO: Should do this as part of tab creation
             tab.session = ace.createEditSession(tab.dataCache, fileModePath);
         }
         tab.editor.setSession(tab.session);
@@ -389,9 +390,18 @@ var saveTab  = function(index) {
 };
 
 /* Folder Manangement */
+var toggleFolderView = function() {
+    var wrapper = document.getElementById('mainWrapper');
+    if (wrapper.classList.contains("expanded")) {
+        wrapper.classList.remove("expanded");
+    } else {
+        wrapper.classList.add("expanded");
+    }
+};
+
 var openFolder = function(dirPath) {
     let structure = getDirectoryStructure(dirPath); // Incorperate fold info
-    let container = document.getElementById('folderView');
+    let container = document.getElementById('viewContainer');
     removeAllChildNodes(container);
     var result = buildElementForFolder(structure);
     result.className = ""; // TODO: Set Fold state using store info
