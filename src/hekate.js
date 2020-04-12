@@ -17,6 +17,10 @@
 // pages in tabs we can easily build an editor - should we be using the main program to control this?
 // It would be nice to be able to have deattachable separate windows, and the ability to merge and split.
 
+"use strict"; // Prevent "Too Many Errors" issue with JSHint - see https://github.com/ajaxorg/ace/issues/2955
+
+// NOTE: Requires 'ace' defined in global scope
+
 const { app, dialog } = require('electron').remote;
 const currentWindow = require('electron').remote.getCurrentWindow();
 
@@ -371,7 +375,7 @@ var saveTab  = function(index) {
     			    if (saveAs) {
     			        tabElements[index].value = getFileName(filePath);
     			        let fileMode = getFileModePath(tab.filePath);
-    			        tab.editor.session.setMode(fileMode)
+    			        tab.editor.session.setMode(fileMode);
         			    setFileModeDisplay(fileMode);
         			    config.update({ openedFilePath: tab.filePath });
     			    }
