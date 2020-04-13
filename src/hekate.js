@@ -1,22 +1,3 @@
-// TODO: General ace settings - ideally on change intercept, failing that use onbeforeunload
-// ideally would save ace settings directly into config, rather than hand coding a shim
-// editor.onChangeMode may be what we need for this (may also want to save session data, so undo/redo
-// preserves across reloads)
-
-// TODO: sub to event for editor content changed (once files loaded) 
-// and mark tab as changed if appropriate (compare to save lasted value on tab)
-
-// TODO: Ability to reorder Tabs
-// TODO: Fix tab display issue when too many tabs!
-
-// TODO: Consider backup process which saves config and back-ups of unsaved changes in case of 
-// crash - currently config saves only on reload and exit
-
-// TODO: Would be kinda nice to be able to load ace and electron documentation inside this editor
-// Would also be nice to have markdown / HTML preview windows - feels like if we can render arbitary 
-// pages in tabs we can easily build an editor - should we be using the main program to control this?
-// It would be nice to be able to have deattachable separate windows, and the ability to merge and split.
-
 "use strict"; // Prevent "Too Many Errors" issue with JSHint - see https://github.com/ajaxorg/ace/issues/2955
 
 // NOTE: Requires 'ace' defined in global scope
