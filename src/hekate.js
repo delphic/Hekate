@@ -141,6 +141,8 @@ var getFileModePath = function(filePath) {
             return "ace/mode/markdown";
         case "css":
             return "ace/mode/css";
+	    case "less":
+	        return "ace/mode/less";
         default:
             return "ace/mode/text";
     }
@@ -168,6 +170,9 @@ var setFileModeDisplay = function(fileMode) {
             break;
         case "ace/mode/css":
             fileModeString = "CSS";
+            break;
+        case "ace/mode/less":
+            fileModeString = "LESS";
             break;
         default:
             fileModeString = "Plain Text";
