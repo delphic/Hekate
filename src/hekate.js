@@ -115,6 +115,8 @@ var getFileModePath = function(filePath) {
         case "htm":
         case "html":
             return "ace/mode/html";
+        case "ejs":
+            return "ace/mode/ejs";
         case "glsl":
             return "ace/mode/glsl";
         case "markdown":
@@ -142,6 +144,9 @@ var setFileModeDisplay = function(fileMode) {
             break;
         case "ace/mode/html":
             fileModeString = "HTML";
+            break;
+        case "ace/mode/ejs":
+            fileModeString = "EJS";
             break;
         case "ace/mode/glsl":
             fileModeString = "GLSL";
