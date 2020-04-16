@@ -7,10 +7,10 @@ var FileTab = module.exports = function() {
         	if (filePath) {
         	    let tab = this;
         		fs.readFile(filePath, 'utf-8', function(error, data) {
+    				tab.filePath = filePath;
         			if (!error) {
         			    tab.lastSavedData = data;
         				tab.dataCache = data;
-        				tab.filePath = filePath;
         			}
     				callback(error, data);
         		});

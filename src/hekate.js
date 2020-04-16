@@ -278,11 +278,11 @@ var loadIntoTab = function(index, filePath, callback) {
                 config.update({ openedFilePath: filePath });
                 // TODO: Move to config class
             	// TODO: Watch file and notify of external changes
-            	if (callback) {
-            	    callback();
-            	}
             } else {
     			logError(index, error);
+            }
+            if (callback) {
+                callback();
             }
         });        
     } else {
