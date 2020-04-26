@@ -253,6 +253,7 @@ var createNewTab = function(filePath) {
     tabElement.type = "button";
     tabElement.className = "button";
     tabElement.value = filePath ? getFileName(filePath) : "New File";
+    tabElement.title = filePath;
     tabElements.push(tabElement);
 
     tabElement.onclick = function() {
@@ -366,6 +367,7 @@ var saveTab  = function(index) {
     			if (!error) {
     			    if (saveAs) {
     			        tabElements[index].value = getFileName(filePath);
+    			        tabElements[index].title = filePath;
     			        let fileMode = getFileModePath(tab.filePath);
     			        tab.editor.session.setMode(fileMode);
         			    setFileModeDisplay(fileMode);
