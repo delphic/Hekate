@@ -1,6 +1,6 @@
 "use strict"; // Prevent "Too Many Errors" issue with JSHint - see https://github.com/ajaxorg/ace/issues/2955
 
-// NOTE: Requires 'ace' defined in global scope
+var ace = window.ace;
 
 const { app, dialog } = require('electron').remote;
 const currentWindow = require('electron').remote.getCurrentWindow();
@@ -10,6 +10,7 @@ var FileTab = require('./src/fileTab');
 
 var lastOpenedFilePath = "";
 var currentFilePath = "";
+var currentProjectPath = "";
 
 var configPath = app.getPath('userData') + "/config.json";
 var config = require('./src/config').load(configPath);
@@ -190,6 +191,8 @@ var switchToTab = function(tabIndex, force) {
         }
         tab.editor.setSession(tab.session);
 
+        let fileName = getFileName(tab.filePath);
+        document.title = fileName ? fileName + " - Hekate" : "Hekate"; 
         currentTabIndex = tabIndex;
         currentFilePath = tab.filePath;
         setFileModeDisplay(fileModePath);
@@ -202,12 +205,16 @@ var createBlankTab = function() {
     switchToTab(index);
 };
 
+var getDialogPath = function() {
+    return currentFilePath ? getPath(currentFilePath) : currentProjectPath ? currentProjectPath : getUserDocumentsPath(); 
+};
+
 /* File Save / Load */ 
 var openFileDialog = function() {
     // https://www.electronjs.org/docs/api/dialog
 	let files = dialog.showOpenDialogSync(currentWindow, {
 		title: "Open File",
-		defaultPath: currentFilePath ? getPath(currentFilePath) : getUserDocumentsPath(),
+		defaultPath: getDialogPath(),
 		properties: [ "openFile" ]
 	});
 	if (files && files[0]) {
@@ -218,7 +225,7 @@ var openFileDialog = function() {
 var openDirectoryDialog = function() {
     let directories = dialog.showOpenDialogSync(currentWindow, {
         title: "Open Project Folder",
-        defaultPath: currentFilePath ? getPath(currentFilePath) : getUserDocumentsPath(),
+        defaultPath: getDialogPath(),
         properties: [ "openDirectory" ]
     });
     if (directories && directories[0]) {
@@ -332,6 +339,8 @@ var closeTab = function(index) {
         if (currentTabIndex >= 0) {
             switchToTab(currentTabIndex, true);
         } else {
+            document.title = "Hekate"; 
+            currentFilePath = "";
             editor.setValue("");
             editor.session.setValue("");
             editor.session.setMode("ace/mode/text");
@@ -340,7 +349,7 @@ var closeTab = function(index) {
         }
             
         config.update({ closedFilePath: filePath, focusedTab: currentTabIndex });
-    } 
+    }
 };
 
 var saveTab  = function(index) {
@@ -355,6 +364,7 @@ var saveTab  = function(index) {
     	if (!filePath) {
     	    filePath = dialog.showSaveDialogSync(currentWindow, { 
     	        title: "Save As...",
+    	        defaultPath: getDialogPath(),
     	        properties: [ "createDirectory" ]
     	    });
     	    tab.filePath = filePath;
@@ -400,6 +410,7 @@ var openFolder = function(dirPath) {
     result.className = ""; // TODO: Set Fold state using store info
     container.appendChild(result);
     config.openDirectory = dirPath;
+    currentProjectPath = dirPath;
 };
 
 var buildElementForFolder = function(structure) {
