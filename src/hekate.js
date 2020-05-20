@@ -205,8 +205,8 @@ var createBlankTab = function() {
     switchToTab(index);
 };
 
-var getDialogPath = function() {
-    return currentFilePath ? getPath(currentFilePath) : currentProjectPath ? currentProjectPath : getUserDocumentsPath(); 
+var getDialogPath = function(ignoreFilePath) {
+    return currentFilePath && !ignoreFilePath ? getPath(currentFilePath) : currentProjectPath ? currentProjectPath : getUserDocumentsPath(); 
 };
 
 /* File Save / Load */ 
@@ -225,13 +225,13 @@ var openFileDialog = function() {
 var openDirectoryDialog = function() {
     let directories = dialog.showOpenDialogSync(currentWindow, {
         title: "Open Project Folder",
-        defaultPath: getDialogPath(),
+        defaultPath: getDialogPath(true),
         properties: [ "openDirectory" ]
     });
     if (directories && directories[0]) {
         openFolder(directories[0]);
     }
-}
+};
 
 var openFile = function(filePath) {
     let foundPath = false;
@@ -284,7 +284,7 @@ var loadIntoTab = function(index, filePath, callback) {
             if (!error) { 
                 logMessage(index, "Loaded " + filePath);
                 config.update({ openedFilePath: filePath });
-                // TODO: Move to config class
+                // TODO: Move messages to config class
             	// TODO: Watch file and notify of external changes
             } else {
     			logError(index, error);
@@ -316,22 +316,31 @@ var closeCurrentTab = function() {
     }
 };
 
-var closeTab = function(index) {
+var closeTab = function(index, dontUpdateConfig) {
     let tab = null;
     if (index >= 0 && index < tabs.length) {
         tab = tabs[index];
     }
     
-    if (tab && (tab.lastSavedData == tab.editor.getValue() || confirm("You have unsaved data, are you sure?"))) {
+    if (tryCloseTabInternal(tab)) {
+        config.update({ closedFilePath: tab.filePath, focusedTab: currentTabIndex });
+    }
+};
+
+var getTabSwitchFunction = function(index) {
+    // Arguably this could be a cached list of functions
+    return function() { switchToTab(index); };
+};
+
+var tryCloseTabInternal = function(tab, force) {
+    if (tab && (force || (tab.lastSavedData == tab.editor.getValue() || confirm("You have unsaved data, are you sure?")))) {
+        // TODO: Change to dialog with option to save and close, discard, or cancel
         var element = tabElements[currentTabIndex];
-        var filePath = tab.filePath;
         tabs.splice(currentTabIndex, 1);
         tabElements.splice(currentTabIndex, 1);
         document.getElementById("tabHolder").removeChild(element);
         for(let i = 0, l = tabElements.length; i < l; i++) {
-            tabElements[i].onclick = function() {
-                switchToTab(i);
-            };
+            tabElements[i].onclick = getTabSwitchFunction(i);
         }
         if (currentTabIndex >= tabs.length) {
             currentTabIndex -= 1;
@@ -347,9 +356,43 @@ var closeTab = function(index) {
             setFileModeDisplay("ace/mode/text");
             logMessage(-1, "");
         }
-            
-        config.update({ closedFilePath: filePath, focusedTab: currentTabIndex });
+        return true;
     }
+    return false;
+};
+
+
+var tryCloseAllTabsInternal = function() {
+    let allSaved = true; 
+    for(let i = 0, l = tabs.length; i < l; i++) {
+        let tab = tabs[i];
+        let hasUnsavedChanges = false;
+        if (tab) {
+            if (currentTabIndex == i) {
+               hasUnsavedChanges = tab.lastSavedData != tab.editor.getValue();
+            } else {
+                hasUnsavedChanges = tab.lastSavedData != tab.dataCache;
+            }
+        }
+        if (hasUnsavedChanges) {
+            let fileName = getFileName(tab.filePath);
+            if (confirm(fileName + " has unsaved changes, are you sure?")) {
+                // TODO: Change to dialog with option to save and continue, discard all, discard this one or cancel
+                break;
+            } else {
+                allSaved = false;
+                break;
+            }
+        }
+    }
+    
+    if (allSaved) {
+        for(let i = tabs.length - 1; i >= 0; i--) {
+            tryCloseTabInternal(tabs[i], true);
+        }
+        return true;
+    }
+    return false;
 };
 
 var saveTab  = function(index) {
@@ -403,14 +446,38 @@ var toggleFolderView = function() {
 };
 
 var openFolder = function(dirPath) {
-    let structure = getDirectoryStructure(dirPath); // Incorperate fold info
-    let container = document.getElementById('viewContainer');
-    removeAllChildNodes(container);
-    var result = buildElementForFolder(structure);
-    result.className = ""; // TODO: Set Fold state using store info
-    container.appendChild(result);
-    config.openDirectory = dirPath;
-    currentProjectPath = dirPath;
+     // Check for unsaved changes (or that they're happen to nuke)
+    if (currentProjectPath != dirPath && tryCloseAllTabsInternal()) {
+        let structure = getDirectoryStructure(dirPath); // Incorperate fold info
+        let container = document.getElementById('viewContainer');
+        removeAllChildNodes(container);
+        var result = buildElementForFolder(structure);
+        result.className = ""; // TODO: Set Fold state using store info
+        container.appendChild(result);
+        
+        currentProjectPath = dirPath;
+        config.update({ openDirectory: dirPath });
+        
+        openFileTabs();
+    }
+};
+
+var openFileTabs = function() {
+    if (config.openFilePaths.length > 0) {
+        let nextToLoadIndex = 0;
+        var loadNextTab = function() {
+            // Switch to last focused tab ASAP 
+            if (nextToLoadIndex - 1 == config.lastFocusedTab) {
+                switchToTab(config.lastFocusedTab, true);
+            }
+            if (nextToLoadIndex < config.openFilePaths.length) {
+                let filePath = config.openFilePaths[nextToLoadIndex]; 
+                nextToLoadIndex += 1;
+                loadIntoTab(createNewTab(filePath), filePath, loadNextTab);
+            }
+        };
+        loadNextTab();
+    }
 };
 
 var buildElementForFolder = function(structure) {
@@ -496,21 +563,8 @@ window.addEventListener('beforeunload', function(event) {
 
 // Start-up logic
 editor.setTheme(config.aceThemePath);
-if (config.openFilePaths.length > 0) {
-    let nextToLoadIndex = 0;
-    var loadNextTab = function() {
-        // Switch to last focused tab ASAP 
-        if (nextToLoadIndex - 1 == config.lastFocusedTab) {
-            switchToTab(config.lastFocusedTab, true);
-        }
-        if (nextToLoadIndex < config.openFilePaths.length) {
-            let filePath = config.openFilePaths[nextToLoadIndex]; 
-            nextToLoadIndex += 1;
-            loadIntoTab(createNewTab(filePath), filePath, loadNextTab);
-        }
-    };
-    loadNextTab();
-}
 if (config.openDirectory) {
     openFolder(config.openDirectory);    
+} else {
+    openFileTabs();
 }

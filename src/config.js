@@ -22,6 +22,12 @@ var Config = module.exports = function() {
     		if (!config.hasOwnProperty("openDirectory")) {
     		    config.openDirectory = null;
     		}
+    		if (!config.hasOwnProperty("projectFilePaths")) {
+    		    config.projectFilePaths = {};
+    		}
+    		if (config.openDirectory) {
+    		    config.projectFilePaths[config.openDirectory] = config.openFilePaths;
+    		}
     	} catch (error) {
     		// TODO: confirm error is that file doesn't exist
     	    config = {
@@ -29,6 +35,7 @@ var Config = module.exports = function() {
     	        openDirectory: "",
     	        lastFocusedTab: 0,
     	        lastOpenedFilePath: "",
+    	        projectFilePaths: {},
     	        aceThemePath: "ace/theme/monokai",  // Obviously the best default theme
     	    };
     	}
@@ -54,6 +61,12 @@ var Config = module.exports = function() {
     	    }
     	    if (params.openDirectory) {
     	        config.openDirectory = params.openDirectory;
+    	        if (config.projectFilePaths.hasOwnProperty(config.openDirectory)) {
+    	            config.openFilePaths = config.projectFilePaths[config.openDirectory];
+    	        } else {
+    	            config.openFilePaths = [];
+    	            config.projectFilePaths[config.openDirectory] = config.openFilePaths;
+    	        }
     	    }
     	};
     	
