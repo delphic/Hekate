@@ -102,7 +102,7 @@ var logError = function(index, error) {
         tabs[index].lastMessage = error.message;
     }
     document.getElementById("logMessage").innerHTML = "<span style='color:red'>" + error.message + "</span>";
-    console.log(JSON.stringify(error));
+    console.error(error);
 };
 
 var getFileModePath = function(filePath) {
