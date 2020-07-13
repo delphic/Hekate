@@ -526,22 +526,23 @@ var deleteFile = function(filePath) {
 /* Set Hotkeys */
 var onKeyPress = function(event) {
     if (event.ctrlKey) {
-        switch(event.key)
+        switch(event.code)
         {
-            case "r": 
+            case "KeyR":
                 config.save();
                 break;
-            case "n":
+            case "KeyN":
                 createBlankTab();
                 break;
-            case "s":
+            case "KeyS":
                 saveCurrentTab();
                 break;
-            case "o":
+            case "KeyO":
                 openFileDialog();
                 break;
-            case "F4":
+            case "KeyF4":
                 // BUG: this doesnt' work even though as far as I can tell it should
+                // The event isn't trigger maybe the F keys don't trigger the body keypress function
                 closeCurrentTab();
                 break;
         }
