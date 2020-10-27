@@ -469,10 +469,11 @@ var openFolder = function(dirPath) {
 var openFileTabs = function() {
     if (config.openFilePaths.length > 0) {
         let nextToLoadIndex = 0;
+        let tabToFocus = Math.min(Math.max(0, config.lastFocusedTab), config.openFilePaths.length - 1);
         var loadNextTab = function() {
             // Switch to last focused tab ASAP 
-            if (nextToLoadIndex - 1 == config.lastFocusedTab) {
-                switchToTab(config.lastFocusedTab, true);
+            if (nextToLoadIndex - 1 == tabToFocus) {
+                switchToTab(tabToFocus, true);
             }
             if (nextToLoadIndex < config.openFilePaths.length) {
                 let filePath = config.openFilePaths[nextToLoadIndex]; 
