@@ -190,6 +190,7 @@ var switchToTab = function(tabIndex, force) {
             tab.session = ace.createEditSession(tab.dataCache, fileModePath);
         }
         tab.editor.setSession(tab.session);
+        tab.editor.focus();
 
         let fileName = getFileName(tab.filePath);
         document.title = fileName ? fileName + " - Hekate" : "Hekate"; 
