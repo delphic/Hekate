@@ -446,8 +446,9 @@ var toggleFolderView = function() {
 };
 
 var openFolder = function(dirPath) {
+    var isReload = currentProjectPath == dirPath;
      // Check for unsaved changes (or that they're happen to nuke)
-    if (currentProjectPath != dirPath && tryCloseAllTabsInternal()) {
+    if (isReload || tryCloseAllTabsInternal()) {
         let structure = getDirectoryStructure(dirPath); // Incorperate fold info
         let container = document.getElementById('viewContainer');
         removeAllChildNodes(container);
@@ -458,7 +459,9 @@ var openFolder = function(dirPath) {
         currentProjectPath = dirPath;
         config.update({ openDirectory: dirPath });
         
-        openFileTabs();
+        if (!isReload) {
+            openFileTabs();
+        }
     }
 };
 
