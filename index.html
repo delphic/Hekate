@@ -4,16 +4,16 @@
 		<title>Hekate</title>
 		<!-- meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';" /-->
 		<!-- Consistently get refused to create worker error in console because of CSP, 
-		    even when worker-src is specified and you put *, or blob:* and/or filesystem:*
-		    so at a bit of a loss how to solve that, so comment out again for now
+			even when worker-src is specified and you put *, or blob:* and/or filesystem:*
+			so at a bit of a loss how to solve that, so comment out again for now
 		-->
 		<link rel="stylesheet" href="hekate.css" type="text/css" />
-        <!-- Would be nice to be able to reuse the ace themes on the rest of the UI -->
+		<!-- Would be nice to be able to reuse the ace themes on the rest of the UI -->
 	</head>
 	<body onkeypress="onKeyPress(event);">
 		<fieldset id="controls">
-		    <input type="button" class="button" value="Project" onclick="openDirectoryDialog();" />
-		    <input type="button" class="button" value="New" onclick="createBlankTab();" />
+			<input type="button" class="button" value="Project" onclick="openDirectoryDialog();" />
+			<input type="button" class="button" value="New" onclick="createBlankTab();" />
 			<input type="button" class="button" value="Open" onclick="openFileDialog();" />
 			<input type="button" class="button" value="Save" onclick="saveCurrentTab();" />
 			<input type="button" class="button" value="Close" onclick="closeCurrentTab();" />
@@ -21,15 +21,15 @@
 			</nav>
 		</fieldset>
 		<div id="mainWrapper" class="mainWrapper expanded">
-		    <div id="folderView">
-		        <div id="viewToggle" onclick="toggleFolderView()"></div>
-		        <div id="viewContainer"></div>
-		    </div>
-    		<div id="editor"></div>
+			<div id="folderView">
+				<div id="viewToggle" onclick="toggleFolderView()"></div>
+				<div id="viewContainer"></div>
+			</div>
+			<div id="editor"></div>
 		</div>
 		<fieldset id="bottomBar">
-		    <p id="logMessage"></p>
-		    <p id="fileMode"></p>
+			<p id="logMessage"></p>
+			<p id="fileMode"></p>
 		</fieldset>
 		<script src="libs/ace/ace.js" type="text/javascript" charset="utf-8"></script>
 		<script src="src/hekate.js" type="text/javascript" charset="utf-8"></script>

@@ -8,16 +8,20 @@ fieldset { height: 30px; padding: 0 5px; margin: 0; border: none; user-select: n
 fieldset div { margin: 5px 0; }
 fieldset input, fieldset select { width: 100px; }
 fieldset input.button { 
-    width: auto; 
-    margin: 5px 0 0;
-    padding: 5px 10px;
+	width: auto; 
+	margin: 5px 0 0;
+	padding: 5px 10px;
 }
 fieldset nav { display: inline-block; margin-left: 5px; }
 fieldset nav input.button { margin-left: 5px; }
 nav .selected { 
-    background-color: white;
-    border: 1px solid #666;
-    border-radius: 2px;
+	background-color: white;
+	border: 1px solid #666;
+	border-radius: 2px;
+}
+
+.ace_editor {
+	tab-size: 2;
 }
 
 fieldset p { display:inline-block; margin-top: 9px; user-select: text; }
@@ -25,67 +29,67 @@ fieldset #fileMode { float: right; }
 
 /* Primary Content */
 .mainWrapper {
-    height: calc(100% - 60px);
-    display: grid;
-    grid-template-columns: 0 1fr;
+	height: calc(100% - 60px);
+	display: grid;
+	grid-template-columns: 0 1fr;
 }
 
 .mainWrapper.expanded {
-    grid-template-columns: 250px 1fr;
-    /* Consider animating: https://developer.mozilla.org/en-US/docs/Web/CSS/animation */
+	grid-template-columns: 250px 1fr;
+	/* Consider animating: https://developer.mozilla.org/en-US/docs/Web/CSS/animation */
 }
 
 .mainWrapper #folderView {
-    grid-column: 1 / 2;
-    grid-row: 1;
-    background-color: #999;
-    padding: 0 10px;
-    overflow-y: auto;
+	grid-column: 1 / 2;
+	grid-row: 1;
+	background-color: #999;
+	padding: 0 10px;
+	overflow-y: auto;
 }
 
 .mainWrapper #editor {
-    grid-column: 2 / 3;
-    grid-row: 1;
+	grid-column: 2 / 3;
+	grid-row: 1;
 }
 
 /* Folder View */
 #folderView ul {
-    list-style: none;
-    margin: 10px;
-    padding: 0;
-    user-select: none;
+	list-style: none;
+	margin: 10px;
+	padding: 0;
+	user-select: none;
 }
 #folderView ul li {
-    margin: 10px 0;
-    padding: 0;
+	margin: 10px 0;
+	padding: 0;
 }
 #folderView ul span {
-    display: inline-block;
+	display: inline-block;
 }
 #folderView .collapsed li {
-    display: none;
+	display: none;
 }
 #folderView ul .directory {
-    margin-left: -10px;
-    cursor: pointer;
-    /* Show Fold arrow - expanded or not depending on if it's expanded or not! */
+	margin-left: -10px;
+	cursor: pointer;
+	/* Show Fold arrow - expanded or not depending on if it's expanded or not! */
 }
 #viewToggle {
-    position: fixed;
-    top: 30px;
-    left: 0;
-    width: 15px;
-    height: 30px;
-    z-index: 5;
-    cursor: pointer;
-    border-radius: 0 0 2px 0;
+	position: fixed;
+	top: 30px;
+	left: 0;
+	width: 15px;
+	height: 30px;
+	z-index: 5;
+	cursor: pointer;
+	border-radius: 0 0 2px 0;
 }
 #viewToggle:hover {
-    display: block;
-    background-color: #666;
+	display: block;
+	background-color: #666;
 }
 .expanded #viewToggle {
-    left: 235px;
-    background-color: #666;
-    border-radius: 0 0 0 2px;
+	left: 235px;
+	background-color: #666;
+	border-radius: 0 0 0 2px;
 }
