@@ -192,6 +192,7 @@ var switchToTab = function(tabIndex, force) {
 			tab.session.setUseSoftTabs(false); // TODO: Some kind of saved config please
 		}
 		tab.editor.setSession(tab.session);
+		tab.editor.focus();
 
 		let fileName = getFileName(tab.filePath);
 		document.title = fileName ? fileName + " - Hekate" : "Hekate"; 
@@ -449,7 +450,8 @@ var toggleFolderView = function() {
 
 var openFolder = function(dirPath) {
 	 // Check for unsaved changes (or that they're happen to nuke)
-	if (currentProjectPath != dirPath && tryCloseAllTabsInternal()) {
+	var isReload = currentProjectPath == dirPath;
+	if (isReload || tryCloseAllTabsInternal()) {
 		let structure = getDirectoryStructure(dirPath); // Incorperate fold info
 		let container = document.getElementById('viewContainer');
 		removeAllChildNodes(container);
@@ -460,17 +462,20 @@ var openFolder = function(dirPath) {
 		currentProjectPath = dirPath;
 		config.update({ openDirectory: dirPath });
 		
-		openFileTabs();
+		if (!isReload) {
+			openFileTabs();			
+		}
 	}
 };
 
 var openFileTabs = function() {
 	if (config.openFilePaths.length > 0) {
 		let nextToLoadIndex = 0;
+		let tabToFocus = Math.min(Math.max(0, config.lastFocusedTab), config.openFilePaths.length - 1);
 		var loadNextTab = function() {
 			// Switch to last focused tab ASAP 
-			if (nextToLoadIndex - 1 == config.lastFocusedTab) {
-				switchToTab(config.lastFocusedTab, true);
+			if (nextToLoadIndex - 1 == tabToFocus) {
+				switchToTab(tabToFocus, true);
 			}
 			if (nextToLoadIndex < config.openFilePaths.length) {
 				let filePath = config.openFilePaths[nextToLoadIndex]; 
